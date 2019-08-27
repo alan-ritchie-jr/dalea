@@ -2,26 +2,30 @@ library(tidyverse)
 #install.packages("mateable")
 library(mateable)
 library(lubridate)
-library(lme4)
-library(DHARMa)
-library(glmmTMB)
-library(nlme)
-library(car)
-library(sjPlot)
-library(ggeffects)
-library(sjmisc)
-library(sjlabelled)
-library(snakecase)
-library(DHARMa)
+
+#coblooming floral community data
 cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
 
+#conspecific density and distance to nearest neighbor data
 con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
 
+#focal plant flowering, pollination, and stigma data
 focal_plt<-read.csv("data/non_database_csvs/focal_plant_stigma_26March2019.csv")
 
+#seed count data
+seed<-read.csv("data/non_database_csvs/seed-counts_26March2019.csv")
 
-### 1st create dataframe for augspurger synchrony measure
-### 2nd create dataframe for bishop synchrony measure
+#updated seed count data with all seed counts
+
+seed2<-read.csv("data/non_database_csvs/dalea_seed_counts_7May2019.csv")
+
+### this will create synchrony measures 
+### and walk through the data and summaries created by mateable
+### note this just uses the focal plant floral data
+### seed_syncrhony, and stigma_seed_synchrony will merge the synchrony data to the other dataframes
+
+
+### 1st we will create dataframe for augspurger synchrony measure
 
 #1st: augspurger requires: 
 # n- the number plants in "defined" population,
@@ -29,7 +33,7 @@ focal_plt<-read.csv("data/non_database_csvs/focal_plant_stigma_26March2019.csv")
 # e- the number days plant i overlaps with another plant, summed across all days
 
 # this can be calculated in mateable()
-# we need a dataframe with: 
+# all we need a dataframe with: 
 # plantID
 # start day of flowering
 # last day of flowering
@@ -41,12 +45,14 @@ focals<-focal_plt%>%
          treatment=ifelse(grepl("UB",plantID),'UB','B'))%>%
   mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))
 
-#summarize for a count of blooming focal plants per day and add yday component
-foc_dates<-focals%>%filter(yday!=190)%>%filter(plantID!="42UB")%>%#42UB has no flowers so we have to drop from analyses
+#summarize a count of blooming focal plants per day and add yday component
+foc_dates<-focals%>%filter(yday!=190)%>%# can't remember why this is filtered
+  filter(plantID!="42UB")%>%#42UB has no flowers so we have to drop from analyses
   select(ymd,yday,treatment,bloom_heads,plantID)%>%
   group_by(plantID,yday,ymd, treatment)%>%
   summarize(bloom_heads)
 
+#wide format 
 foc_date_wide<-focals%>%filter(yday!=190)%>%
   select(yday,ymd,treatment,bloom_heads,plantID)%>%
   group_by(plantID,yday,ymd,treatment)%>%
@@ -71,7 +77,7 @@ pop5<-c("11UB","12UB","13UB","14UB","15UB","16UB","17UB","18UB",
 pop6<-c("21UB","22UB","23UB","24UB","25UB","26UB","27UB","28UB",
         "29UB","30UB","37UB","38UB","39UB","40UB","41UB","42UB")
 
-            
+         
 flw_first_last<- foc_dates %>% group_by(plantID,treatment) %>%
   summarise(firstDay=ymd[first(which(bloom_heads>=1))],
             lastDay=ymd[last(which(bloom_heads >= 1))]) %>%ungroup()%>%
@@ -362,383 +368,8 @@ pheno_sync%>%ggplot(aes(treatment, start,fill=treatment))+geom_boxplot()
 summary(glmer(syn_aug~treatment+(1|pop),family="quasibinomial",data=pheno_sync))#look up quasibinomial
 
 
-
-### pollen data
-
-ID_trt<-focals%>%select(plantID, treatment)%>%group_by(plantID,treatment)%>%summarize()
-
-#anti_join to see who has no stigma data
-stig_check<-poll_stig%>%anti_join(ID_trt, c("plantID")) #check this one; likely 5 or 30 B
-#30B was 50B; manually changed in csv because having issues
-# ADD TO OPENREFINE.
-# Also check NAs vs 0s in open refine
-stig<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))%>%
-  group_by(plantID,round,month,day,year,treatment)%>%
-  mutate(date=paste(month,day,year,sep="-"))%>%
-  mutate(mdy=mdy(date),yday=yday(mdy))%>%
-
-#now we want to take each plant and take an average of each pollen type per stigma and total deposiiton period
-  group_by(plantID,treatment)%>%
-  summarise(n_stig=n(),sum_dalpur=sum(dpurp_pollen), mean_dalpur=mean(dpurp_pollen),
-            sum_amocan=sum(amocan_pollen),
-            mean_amocan=mean(amocan_pollen),
-            sum_hetero=sum(amocan_pollen+
-                             aster_pollen+
-                             dcand_pollen+
-                             unknown_hetero_pollen),
-            mean_hetero=mean(amocan_pollen+
-                               aster_pollen+
-                               dcand_pollen+
-                               unknown_hetero_pollen),
-            sum_total_pollen=sum(dpurp_pollen+amocan_pollen+
-                                   aster_pollen+
-                                   dcand_pollen+
-                                   unknown_hetero_pollen))
-#so some plants we have few stigma, and others we have more.
-# Think about how to model when exposure is so different?
-
-  #so some plants we have few stigma, and others we have more.
-# Think about how to model when exposure is so different?
-
-  stig_seed_sync<-stig%>%left_join(seed_sync, c("plantID","treatment"))
-
-
-  
-###average dalea pollen deposited per stigma per plant
-  stig_seed_sync%>% ggplot(aes(treatment, mean_dalpur,fill=treatment))+geom_boxplot()
-  #average hetero per stigma per plant
-  stig_seed_sync%>% ggplot(aes(treatment, mean_hetero,fill=treatment))+geom_boxplot() 
-  #average amocan per stigma per plant
-  stig_seed_sync%>% ggplot(aes(treatment, mean_amocan,fill=treatment))+geom_boxplot() 
-
-
-#histograms 
-#distribution of mean dalea pollen deposited   
- stig_seed_sync%>%ggplot(aes(mean_dalpur,color=treatment))+ 
-    geom_histogram()+facet_grid(.~treatment)
- #distribution of mean amocan pollen deposted
- stig_seed_sync%>%ggplot(aes(sum_amocan/n_stig,color=treatment))+ 
-   geom_histogram()+facet_grid(.~treatment)
- #hetero
- stig_seed_sync%>%ggplot(aes(mean_hetero,color=treatment))+ 
-   geom_histogram()+facet_grid(.~treatment) 
- #mean total
- stig_seed_sync%>%ggplot(aes(mean_total_pollen,color=treatment))+ 
-   geom_histogram()+facet_grid(.~treatment) 
- ## lotta zeroes in these data to deal with 
-  
- ### average dalea pollen deposited as a function of synchrony
- stig_seed_sync%>%ggplot(aes(syn_aug,mean_dalpur,color=treatment))+
-   geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
- # pretty flat, local density probably more important
- 
-### average dalea pollen deposted as a function of start day
- stig_seed_sync%>%ggplot(aes(start,mean_dalpur,color=treatment))+
-   geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
- # given that
- 
- stig_seed_sync%>%ggplot(aes(start,mean_amocan,color=treatment))+
-   geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
- 
- 
- stig_seed_sync%>%ggplot(aes(start,mean_hetero,color=treatment))+
-   geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
- 
- 
- #### modeling pollen deposition:
- 
- ### stigma level: Pollen can be modelted as a bernoulli (0/1, absent or present)
- 
- #plant level average over the whole season
- 
- #stigma level: proportion of total pollen deposited that was amorpha vs dalea?
- 
- 
- # zero inflation seems to be an issue? 
- 
- #overdispersion could be dealt with by an individual level random effect as in the seed data
- 
- 
- #see what data allow for---
- 
- #
-# model of the proportion of amorpha pollen/total pollen summed over all stigma for each plant
- stig_mod<-glmer(sum_amocan/sum_total_pollen~scale(start)*treatment+(1|pop),
-                      weights=sum_total_pollen,
-                      family=binomial,data=stig_seed_sync)
- summary(stig_mod)
- 
- sim_stig<-simulateResiduals(fittedModel = stig_mod,n=1000)
- 
- plot(sim_stig)
- 
- testDispersion(sim_stig)
- testZeroInflation(sim_stig) #zero inflation test comes back significant
- 
- 
- #with observation level random effect
- 
- stig_mod_olre<-glmer(sum_amocan/sum_total_pollen~scale(start)*treatment+(1|pop)+(1|plantID),
-                 weights=sum_total_pollen,
-                 family=binomial,data=stig_seed_sync)
-summary(stig_mod_olre)
- 
- sim_stig_olre<-simulateResiduals(fittedModel = stig_mod_olre,n=1000)
- 
- plot(sim_stig_olre)
- 
- testDispersion(sim_stig_olre)
- testZeroInflation(sim_stig_olre) # fixed overdispersion due to zero inflation
- 
- #parameter estimates change a bit, but overall message of the model doesn't seem to change.
- 
-
- 
- #adding observation level random effect controls for the zero inflation, which is significant according to DHARMa
- 
- #### Plot this dang stigma model
- 
- 
- s<-get_model_data(stig_mod,type="pred",terms=c("start","treatment"), 
-                   pred.type="re", colors= "bw",ci.lvl= .95) 
- 
-s<-ggpredict(stig_mod_olre,type="re",terms=c("start","treatment"))
- #re=random effect conditioned 
- 
- 
- ### make separate dataframes for CI for plot
- sb<-s%>%filter(group=="B")
- sub<-s%>%filter(group=="UB")
- 
- ###make plot for seed model
- ggplot(data=stig_seed_sync,aes(start, (sum_amocan/sum_total_pollen)))+
-   geom_point(aes(shape=treatment),position="jitter")+
-   geom_line(data=s, aes(x, predicted,linetype=group))+
-   #geom_ribbon(data=sb,aes(x=x,ymin=conf.low, ymax=conf.high),alpha = 0.3,inherit.aes = FALSE)+
-   #geom_ribbon(data=sub,aes(x=x,ymin=conf.low, ymax=conf.high),alpha = 0.3,inherit.aes = FALSE)+
-   labs(shape="Treatment",linetype="Predicted Response")+
-   xlab("Flowering Start Date")+ylab("Amorpha Pollen Grains/Total Pollen Grains Deposited")+
-   ggtitle("Effect of Start Date on Amorpha Pollen Deposition",
-           subtitle="Predicted Response vs. Data")
- 
- 
-### seleciton gradient
  
  
  
  
  
- 
- 
- #########################
-#seedchrony
-
-seed_check<-seed%>%anti_join(ID_trt, c("plantID")) # should only be controls
-
-colnames(seed)
-### calculate seed prod difference for each group, accoutn for # heads
-seed_count<-seed%>%left_join(ID_trt, c("plantID"))%>%
-  rename(full=X.full_seeds, part=X.partial_full_seeds,empty=X.aborted_seeds,
-         heads=Num_Heads,abrt_heads=Aborted_Heads,dehisc_heads=Dehisced_Heads)%>%
-  gather(key = "seed_fill", value = "count",full,part,empty)%>% 
-  replace_na(list(treatment= "Control"))
-
-#without
-
-
-seed_prop<-seed%>%left_join(ID_trt, c("plantID"))%>%filter(plantID!="8UBC")%>%
-  replace_na(list(treatment= "Control"))%>%filter(treatment!="Control")%>%
-  rename(full=X.full_seeds, part=X.partial_full_seeds,empty=X.aborted_seeds,
-         heads=Num_Heads,abrt_heads=Aborted_Heads,dehisc_heads=Dehisced_Heads)%>% 
-  mutate_all(funs(replace(., is.na(.), 0)))%>%group_by(plantID)%>%
-summarise(n_collection_events=n(),heads=sum(heads),full=sum(full), part=sum(part), empty=sum(empty),
-          total_fruit=full+part+empty, filling_frt_prop=(full+part)/total_fruit,
-         seed_prop=full/total_fruit)
-
-#join seed data with synchrony
-
-seed_sync<-pheno_sync%>%left_join(seed_prop,by="plantID")
-
-
-
-seed_sync%>% ggplot(aes(treatment, seed_prop,fill=treatment))+geom_boxplot()
-
-seed_sync%>% ggplot(aes(pop, seed_prop,fill=treatment))+geom_boxplot()
-
-
-seed_sync%>% ggplot(aes(treatment, filling_frt_prop,fill=treatment))+geom_boxplot()
-
-seed_sync%>% ggplot(aes(pop, filling_frt_prop,fill=treatment))+geom_boxplot()
-
-### seed_prop plots
-seed_sync%>%ggplot(aes(syn_aug,seed_prop,color=treatment))+
-  geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
-
-seed_sync%>%ggplot(aes(syn_aug,filling_frt_prop,color=treatment))+
-  facet_grid(.~treatment)+geom_point()+stat_smooth(method="lm")
-
-seed_sync%>%ggplot(aes(start,seed_prop,color=treatment))+geom_point()+
-  facet_grid(.~treatment)+stat_smooth(method="lm")
-
-seed_sync%>%ggplot(aes(start,syn_aug,color=treatment))+geom_point()+
-  facet_grid(.~treatment)+stat_smooth(method="lm")
-
-#prop seeds vs start date
-seed_sync%>%ggplot(aes(start,full/total_fruit,color=treatment))+ 
-  geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
-
-#full seeds vs start date
-seed_sync%>%ggplot(aes(start,full,color=treatment))+ 
-  geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
-#the number of seeds produced decreases at almost the same rate for each treatment
-#histogram
-seed_sync%>%ggplot(aes(seed_prop,color=treatment))+ 
-  geom_histogram()+facet_grid(.~treatment)
-
-#total filled seeds vs 
-seed_sync%>%ggplot(aes(heads,seed_prop,color=treatment))+ 
-  geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
-
-sync_cor<-seed_sync%>%select(start, duration, syn_aug)%>%cor()
-
-##models
-trt_mod<-glmer(full/total_fruit~treatment+(1|pop)+(1|id),
-              weights=total_fruit,family=binomial,data=seed_sync)
-
-summary(trt_mod)
-sim_trt<-simulateResiduals(fittedModel = trt_mod,n=1000)
-
-plot(sim_trt)
-
-testDispersion(sim_trt)
-
-
-summary(glmer(full/total_fruit~start*treatment+(1|pop),
-              weights=total_fruit,family=binomial,data=seed_sync))
-        
-        
-summary(glmer((full+part)/total_fruit~start*treatment+(1|pop),
-              weights=total_fruit,family=binomial,data=seed_sync))
-
-# show to dan, check assumption
-#check overdispersion
-#from bolker faq
-overdisp_fun <- function(model) {
-  rdf <- df.residual(model)
-  rp <- residuals(model,type="pearson")
-  Pearson.chisq <- sum(rp^2)
-  prat <- Pearson.chisq/rdf
-  pval <- pchisq(Pearson.chisq, df=rdf, lower.tail=FALSE)
-  c(chisq=Pearson.chisq,ratio=prat,rdf=rdf,p=pval)
-}
-
-
-#try out observation level random effect to deal with overdispersion
-
-mod1<-glmer(full/total_fruit~start*treatment+(1|pop),
-            weights=total_fruit,family=binomial,data=seed_sync)
-summary(mod1)
-
-mod1_olre<-glmer(full/total_fruit~scale(start)*treatment+(1|pop)+ (1|id),
-            weights=total_fruit,family=binomial,data=seed_sync)
-summary(mod1_olre)
-
-mod2<- glmer((full+part)/total_fruit~scale(start)*treatment+(1|pop)+(1|id),
-                weights=total_fruit,family=binomial,data=seed_sync)
-summary(mod2)
-
-overdisp_fun(mod1)
-overdisp_fun(mod2)
-
-
-gof(mod1)
-gof(mod1s)
-gof(mod2)
-
-
-c_start<-seed_sync$start-mean(seed_sync$start)
-c_start
-s_start<-scale(seed_sync$start)
-s_start
-##dharma check of overdisp
-
-sim_mod1<-simulateResiduals(fittedModel = mod1,n=1000)
-
-plot(sim_mod1)
-
-testDispersion(sim_mod1)
-
-sim_mod1_olre<-simulateResiduals(fittedModel = mod1_olre,n=1000)
-
-plot(sim_mod1_olre)
-
-testDispersion(sim_mod1_olre)
-
-sim_mod2<-simulateResiduals(fittedModel = mod2,n=1000)
-
-plot(sim_mod2)
-
-testDispersion(sim_mod2)
-
-sim_mod3<-simulateResiduals(fittedModel = mod3,n=1000)
-plot(sim_mod3)
-testDispersion(sim_mod3)
-
-
-### plot model
-### figure out why this doesn;t work!
-
-s<-ggpredict(mod1_olre,type="re",terms=c("start","treatment"))
-
-plot(s)
-
-ggplot(s, aes(x, predicted, colour = group)) + geom_line()+
-  geom_point(data=stig_seed_sync,aes(shape=treatment),position="jitter")
-
-s<-plot_model(mod1_olre, type = "pred", terms = c("start"), pred.type = "re")
-
-#re=random effect conditioned 
-
-
-### make separate dataframes for CI for plot
-sb<-s%>%filter(group=="B")
-sub<-s%>%filter(group=="UB")
-
-###make plot for seed model
-ggplot(data=stig_seed_sync,aes(start, (full/total_fruit)))+
-  geom_line(data=s, aes(x, predicted,linetype=group))+
-  geom_point(aes(shape=treatment),position="jitter")+
-  geom_line(data=s, aes(x, predicted,linetype=group))+
-  #geom_ribbon(data=sb,aes(x=x,ymin=conf.low, ymax=conf.high),alpha = 0.3,inherit.aes = FALSE)+
-  #geom_ribbon(data=sub,aes(x=x,ymin=conf.low, ymax=conf.high),alpha = 0.3,inherit.aes = FALSE)+
-  labs(shape="Treatment",linetype="Predicted Response")+
-  xlab("Flowering Start Date")+ylab("Amorpha Pollen Grains/Total Pollen Grains Deposited")+
-  ggtitle("Effect of Start Date on Amorpha Pollen Deposition",
-          subtitle="Predicted Response vs. Data")
-
-
-
-
-
-
-
-
-
-## correlation between synchrony measures
-library(reshape2)
-melted_cormat <- melt(sync_cor)
-head(melted_cormat)
-
-
-ggplot(data = melted_cormat, aes(Var2, Var1, fill = value))+
-  geom_tile(color = "white")+
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
-                       midpoint = 0, limit = c(-1,1), space = "Lab", 
-                       name="Pearson\nCorrelation") +
-  theme_minimal()+ 
-  theme(axis.text.x = element_text(angle = 45, vjust = 1, 
-                                   size = 12, hjust = 1))+
-  coord_fixed()
-
-
-
