@@ -61,17 +61,45 @@ levels(as.factor(focals$day))
 levels(as.factor(focals$round))
 levels(as.factor(visit$day))
 levels(as.factor(visit$round))
+visit$plantID<-trimws(visit$plantID)#trim ws
+
 #join pollinators and focal_flw by plantID & new column, round_V
+visit<-visit%>%
+  mutate(round_v=ifelse(day==16, "2a", 
+                        ifelse(day==18,"2b",
+                               ifelse(day==11,"1a",ifelse(day==12,"1b",
+                                                          round)))))#created round_v
+
+focal_flw<-focal_flw%>%
+  mutate(round_v=ifelse(day==197, "2a", 
+                        ifelse(day==199,"2b",
+                               ifelse(day==192,"1a",ifelse(day==193,"1b",
+                                                           round)))))#created round_v
+
+poll_vis<-left_join(visit,focal_flw, by=c("plantID","round_v"))%>%
+  filter(bloom_heads>0)
+poll_check<-anti_join(visit,focal_flw, by=c("plantID","round_v"))#should be 0
 
 # get number of visits per interval, then divide by number of flowers on plant at that round
-visit_summary<-visit%>%select(plantID,time, morphoID, touches)%>%
-  group_by(plantID)%>%
-  summarise( observations=n_distinct(time),total_visits=sum(!is.na(morphoID)),
-           visit_rate=(total_visits/observations))
+visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, touches,bloom_heads,treatment)%>%
+  group_by(plantID,round_v,treatment,day.y)%>%
+  summarise(n_visits=sum(!is.na(morphoID)), n_obs=n(),
+            flw_heads=(sum(bloom_heads))/n(), intervals=n_distinct(time),
+            visit_head_min=((n_visits/flw_heads)/intervals),visit_min=n_visits/intervals)
+#this is a per round summary
+#indivdual means:
+
+visit_summary_indi<-visit_summary%>%
+  group_by(plantID, treatment)%>%
+  summarise(mean_n_visits=mean(n_visits),mean_flw_heads=mean(flw_heads),
+            mean_visit_head_min=mean(visit_head_min),
+            mean_visit_min=mean(visit_min))
+### so we need to think about how to incorporate display size.
+
 
 ### now visit summary can be joined with stig_seed_sync2
 stig_seed_sync_vis<-stig_seed_sync2%>%left_join(visit_summary, c("plantID"))
-## now merge with focals to get 
+## now merge with focal summary from vis to get 
 stig_seed_sync_vis_foc<-stig_seed_sync_vis%>%left_join(focal_summary,c("plantID"))
 #should have 94 obs
 
@@ -105,109 +133,3 @@ dalea_summary<-stig_seed_sync_vis_foc%>%group_by(treatment)%>%filter(plantID!="8
 write.csv(dalea_summary,"data/dalea_summary_table.csv",row.names = FALSE)
 
 
-## lets start incorporating density data
-
-
-#coblooming floral community data
-
-cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
-
-#make a quick summary
-
-#first replace na w/ zero
-cobloom$X.floral_units[is.na(cobloom$X.floral_units)]<-0
-
-cobloom_ID<-cobloom%>%left_join(ID_trt, c("plantID"))
-
-cobloom_summary<-cobloom_ID%>%
-  group_by(treatment)%>%
-  summarize(n_plants=n_distinct(cobloom$plantID),n_genus_species=n_distinct(plant_genus_sp),
-                                avg_blooms=mean(X.floral_units),
-            max_blooms=max(X.floral_units))
-
-ggplot(cobloom_ID, aes(X.floral_units,fill=treatment))+geom_histogram()+facet_grid(.~treatment)
-#data zero inflated
-# really low average
-
-## now individual level
-
-
-#conspecific density and distance to nearest neighbor data
-con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
-#how many plants?
-con_dens_ID<-con_dens%>%left_join(ID_trt, c("plantID"))
-#drop all obs where NA or estimate of distance (>4, >10) used
-con_dens_ID$NN_1<-as.numeric(as.character(con_dens_ID$NN_1))
-con_dens_ID$NN_2<-as.numeric(as.character(con_dens_ID$NN_2))
-con_dens_ID$NN_3<-as.numeric(as.character(con_dens_ID$NN_3))
-
-#some NAs left over from data cleaning- these should be 0
-con_dens_ID$X.dalpur_1m[is.na(con_dens_ID$X.dalpur_1m)]<-0
-con_dens_ID$X.dalpur_5m[is.na(con_dens_ID$X.dalpur_5m)]<-0
-
-## first let's et the ratio of NAs to actual data across the 3 NN classes
-sum(is.na(con_dens_ID$NN_1))/sum(!is.na(con_dens_ID$NN_1))
-sum(is.na(con_dens_ID$NN_2))/sum(!is.na(con_dens_ID$NN_2))
-sum(is.na(con_dens_ID$NN_3))/sum(!is.na(con_dens_ID$NN_3))
-### pretty close to half of the data is NA here. 
-# there are points in the data where this truly means no conspecifics are near
-# but there are other points where this means we lack data.
-# we shouldn't lose plants
-
-## general treatment level summar
-
-con_dens_summary<-con_dens_ID%>%
-  group_by(treatment)%>%drop_na()%>%
-  summarize(n_plants=n_distinct(plantID),mean_dens_1m=mean(X.dalpur_1m),
-            mean_dens_5m=mean(X.dalpur_5m),
-            mean_1st_NN=mean(NN_1),mean_2nd_NN=mean(NN_2),mean_3rd_NN=mean(NN_3))
-#now let's visualized
-
-#histograms
-
-ggplot(con_dens_ID, aes(NN_1,fill=treatment))+geom_histogram()+facet_grid(.~treatment)+ggtitle("Distribution of 1st Nearest Neighbor dist by treatment")
-
-#
-ggplot(con_dens_ID, aes(X.dalpur_1m,fill=treatment))+geom_histogram()+facet_grid(.~treatment)+
-  ggtitle("Distribution of conspecific density in 1m by treatment")
-#lotta zeroes
-
-ggplot(con_dens_ID, aes(X.dalpur_5m,fill=treatment))+geom_histogram()+
-  facet_grid(.~treatment)+ggtitle("Distribution of conspecific density in 5m by treatment")
-#fewer zeroes--more variance than 1m?
-
-###boxplots or violin plots
-
-ggplot(con_dens_ID, aes(treatment,NN_1,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean distance to NN1 by treatment")
-
-ggplot(con_dens_ID, aes(treatment,NN_2,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean conspecific density in 5m by treatment")
-
-ggplot(con_dens_ID, aes(treatment,X.dalpur_1m,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean conspecific density in 1m by treatment")
-
-ggplot(con_dens_ID, aes(treatment,X.dalpur_5m,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean conspecific density in 5m by treatment")
-
-
-### relationship over time?
-ggplot(con_dens_ID, aes(as.factor(round),X.dalpur_1m,color=treatment))+geom_boxplot()+
-  ggtitle("Change in conspecific density in 1m over time by treatment")
-
-ggplot(con_dens_ID, aes(as.factor(round),X.dalpur_5m,color=treatment))+geom_boxplot()+
-  ggtitle("Change in conspecific density in 5m over time by treatment")
-
-ggplot(con_dens_ID, aes(as.factor(round),NN_1,color=treatment))+geom_boxplot()+
-  ggtitle("Change in distance to NN1 over time by treatment")
-
-### takeaways: mean density, and its patterns overtime look very similar for both treatments
-### the peak number of flowering conspecific stems observed at 5m is higher in burned unit
-
-### now let's look at individual means
-
-individual_con_dens_summary<-con_dens_ID%>%
-  group_by(treatment)%>%drop_na()%>%
-  summarize(n_plants=n_distinct(plantID),mean_dens_1m=mean(X.dalpur_1m),
-            mean_dens_5m=mean(X.dalpur_5m),
-            mean_1st_NN=mean(NN_1),mean_2nd_NN=mean(NN_2),mean_3rd_NN=mean(NN_3))
