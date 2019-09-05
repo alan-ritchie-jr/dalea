@@ -14,6 +14,8 @@ cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.c
 
 #first replace na w/ zero
 cobloom$X.floral_units[is.na(cobloom$X.floral_units)]<-0
+#replace NA NA in plant genus sp column with true NA so we don't inflate plant_genus_sp
+cobloom$plant_genus_sp[cobloom$plant_genus_sp == "NA NA"]<- NA
 
 cobloom_ID<-cobloom%>%left_join(ID_trt, c("plantID"))
 
@@ -106,9 +108,17 @@ ggplot(con_dens_ID, aes(as.factor(round),NN_1,color=treatment))+geom_boxplot()+
 
 indi_con_dens<-con_dens_ID%>%
   group_by(plantID,treatment)%>%drop_na()%>%
-  summarize(n_obs=n(),mean_dens_1m=mean(X.dalpur_1m),
+  summarize(n_density_obs=n(),mean_dens_1m=mean(X.dalpur_1m),
             mean_dens_5m=mean(X.dalpur_5m),
             mean_NN_1=mean(NN_1),mean_NN_2=mean(NN_2),mean_NN_3=mean(NN_3))
+
+
+## check why number of observations acts the way it does?
+indi_cobloom_dens<-cobloom_ID%>%
+  group_by(plantID,round)%>%mutate(daily_richness=ifelse(is.na(plant_genus_sp), 0, n_distinct(plant_genus_sp)))%>%ungroup()%>%
+  group_by(plantID,treatment)%>%
+  summarize(n_cobloom_obs=n(),mean_cobloom_floral_units_1m=mean(X.floral_units),
+            mean_cobloom_richness_1m=mean(daily_richness))
 
 ## visualize
 
@@ -136,7 +146,15 @@ stig_seed_sync_dens<-indi_con_dens%>%left_join(stig_seed_sync2, c("plantID","tre
 
 stig_seed_sync_dens_vis<-stig_seed_sync_dens%>%left_join(visit_summary_indi, c("plantID","treatment"))
 
-# and cobloom data
+
+# merge in focal_summary which has mean_heads and mean daily presentation
+stig_seed_sync_dens_vis_foc<-stig_seed_sync_dens_vis%>%left_join(focal_summary,c("plantID"))
+# and cobloom data for full dalea df
+
+#### this is the full data frame!!!!
+full_dalea_df<-stig_seed_sync_dens_vis_foc%>%left_join(indi_cobloom_dens,c("plantID"))
+######
+
 ### lets explore phenology and density relationships
 ### if fire increases flowering you would expect that there are more individuals flowering near focal plants
 ###
