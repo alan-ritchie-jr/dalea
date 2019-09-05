@@ -13,7 +13,7 @@ focal_plt<-read.csv("data/non_database_csvs/focal_plant_stigma_26March2019.csv")
 
 poll_stig<-read.csv("data/non_database_csvs/stigma-pollen-counts_23March2019.csv")
 
-visit<-read.csv("data/non_database_csvs/visitation_23March2019.csv")
+visit<-read.csv("data/non_database_csvs/visitation_30Aug2019.csv")
 
 seed<-read.csv("data/non_database_csvs/seed-counts_26March2019.csv")
 

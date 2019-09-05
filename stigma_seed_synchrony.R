@@ -4,7 +4,7 @@
 ### use data from phenology.R and seed_synchrony.R scripts
 
 ###seed_prop2 and seed_prop
-
+view(pol)
 
 ID_trt<-focals%>%select(plantID, treatment)%>%group_by(plantID,treatment)%>%summarize()
 
@@ -13,14 +13,20 @@ stig_check<-poll_stig%>%anti_join(ID_trt, c("plantID")) #check this one; likely 
 #30B was 50B; manually changed in csv because having issues
 # ADD TO OPENREFINE.
 # Also check NAs vs 0s in open refine
+
+### stig data frame organizes pollen deposition data
 stig<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))%>%
   group_by(plantID,round,month,day,year,treatment)%>%
   mutate(date=paste(month,day,year,sep="-"))%>%
-  mutate(mdy=mdy(date),yday=yday(mdy))%>%
+  mutate(mdy=mdy(date),yday=yday(mdy), total_pollen=dpurp_pollen+amocan_pollen+
+           aster_pollen+
+           dcand_pollen+
+           unknown_hetero_pollen)%>%
   
   #now we want to take each plant and take an average of each pollen type per stigma and total deposiiton period
   group_by(plantID,treatment)%>%
-  summarise(n_stig=n(),sum_dalpur=sum(dpurp_pollen), mean_dalpur=mean(dpurp_pollen),
+  summarise(n_stig=n(),n_unpollinated_stigma=length(total_pollen[total_pollen==0]),
+            sum_dalpur=sum(dpurp_pollen), mean_dalpur=mean(dpurp_pollen),
             sum_amocan=sum(amocan_pollen),
             mean_amocan=mean(amocan_pollen),
             sum_hetero=sum(amocan_pollen+
@@ -47,10 +53,11 @@ stig<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))
 
 stig_seed_sync<-stig%>%left_join(seed_sync, c("plantID","treatment"))
 
+###seed_sync2 is the updated data
 stig_seed_sync2<-stig%>%left_join(seed_sync2, c("plantID","treatment"))
 
 
-
+### from stiga
 
 
 
@@ -68,7 +75,7 @@ stig_seed_sync2%>% ggplot(aes(treatment, mean_amocan,fill=treatment))+geom_boxpl
 stig_seed_sync%>%ggplot(aes(mean_dalpur,color=treatment))+ 
   geom_histogram()+facet_grid(.~treatment)
 #distribution of mean amocan pollen deposted
-stig_seed_sync2%>%ggplot(aes(sum_amocan/n_stig,color=treatment))+ 
+stig_seed_sync2%>%ggplot(aes(mean_amocan,color=treatment))+ 
   geom_histogram()+facet_grid(.~treatment)
 #hetero
 stig_seed_sync%>%ggplot(aes(mean_hetero,color=treatment))+ 
@@ -79,7 +86,7 @@ stig_seed_sync%>%ggplot(aes(mean_total_pollen,color=treatment))+
 ## lotta zeroes in these data to deal with 
 
 ### average dalea pollen deposited as a function of synchrony
-stig_seed_sync2%>%ggplot(aes(heads,mean_dalpur,color=treatment))+
+stig_seed_sync2%>%ggplot(aes(syn_o,mean_dalpur,color=treatment))+
   geom_point()+facet_grid(.~treatment)+stat_smooth(method="lm")
 # pretty flat, local density probably more important
 

@@ -37,14 +37,23 @@ seed2<-read.csv("data/non_database_csvs/dalea_seed_counts_7May2019.csv")
 # plantID
 # start day of flowering
 # last day of flowering
-
+is.numeric(focals$bloom_heads)
+focal_plt$X.bloom_flwheads<-as.numeric(focal_plt$X.bloom_flwheads)
 #create a summation of flowers, a treatment column, and a yday column
 focals<-focal_plt%>%
-  rename(bloom_heads=X.bloom_flwheads)%>%
-  mutate(total_flws_est=head1+head2+head3+head4+head5, 
+  rename(bloom_heads=X.bloom_flwheads)%>%filter(!is.na(head1))%>%
+  mutate(total_flws_est=
+           ifelse(bloom_heads > 5,
+             ((head1+head2+head3+head4+head5)/5)*bloom_heads,(head1+head2+head3+head4+head5)), 
          treatment=ifelse(grepl("UB",plantID),'UB','B'))%>%
   mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))
 
+focal_summary<-focals%>%
+  group_by(plantID)%>%
+  summarise(n_obs=n(),max_flowering_heads=max(bloom_heads),
+            mean_flowering_heads=mean(bloom_heads),
+            est_total_observed_flw_production=sum(total_flws_est),
+            est_mean_daily_flw_presentation=mean(total_flws_est))
 #summarize a count of blooming focal plants per day and add yday component
 foc_dates<-focals%>%filter(yday!=190)%>%# can't remember why this is filtered
   filter(plantID!="42UB")%>%#42UB has no flowers so we have to drop from analyses
