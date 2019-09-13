@@ -1,3 +1,16 @@
+### RUN ME FIRST!
+
+#this script calculates the phenological traits of each focal dalea plant, 
+## and allows us to summarize them across each treatment and sub pop
+
+## we want a measure of synchrony (how much a plant overlaps with members of its sub pop)
+# start of flowering
+# its peak of flowering (the day when it had the largest floral display)
+# and duration of flowering
+
+# it produced a df called focal_pheno that is needed in subsequent dataframes
+
+
 library(tidyverse)
 #install.packages("mateable")
 library(mateable)
@@ -39,7 +52,12 @@ seed2<-read.csv("data/non_database_csvs/dalea_seed_counts_7May2019.csv")
 # last day of flowering
 is.numeric(focals$bloom_heads)
 focal_plt$X.bloom_flwheads<-as.numeric(focal_plt$X.bloom_flwheads)
-#create a summation of flowers, a treatment column, and a yday column
+
+
+### create an ID by treatment df for including treatment in other dataframes
+ID_trt<-focals%>%select(plantID, treatment)%>%group_by(plantID,treatment)%>%summarize()
+
+#create a summation of flowers, a treatment column, and a yday colum,
 focals<-focal_plt%>%
   rename(bloom_heads=X.bloom_flwheads)%>%filter(!is.na(head1))%>%
   mutate(total_flws_est=
@@ -48,22 +66,29 @@ focals<-focal_plt%>%
          treatment=ifelse(grepl("UB",plantID),'UB','B'))%>%
   mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))
 
+
+### focal summary is used in dalea_sumary script, # estimate peak flowering day
 focal_summary<-focals%>%
-  group_by(plantID)%>%
-  summarise(n_obs=n(),max_flowering_heads=max(bloom_heads),
+  filter(plantID!="42UB")%>%#42UB had no flowers observed so is dropped
+  group_by(plantID,treatment)%>%
+  summarise(n_focal_obs=n(),max_flowering_heads=max(bloom_heads),
             mean_flowering_heads=mean(bloom_heads),
-            est_total_observed_flw_production=sum(total_flws_est),
-            est_mean_daily_flw_presentation=mean(total_flws_est))
+            est_mean_daily_flw_presentation=mean(total_flws_est),
+            peak_flw_head=yday[which.max(bloom_heads)],peak_flw_est=yday[which.max(total_flws_est)])
+
+
+### focal summary is now manipulated for use with mateable
+
 #summarize a count of blooming focal plants per day and add yday component
+# find
 foc_dates<-focals%>%filter(yday!=190)%>%# can't remember why this is filtered
   filter(plantID!="42UB")%>%#42UB has no flowers so we have to drop from analyses
-  select(ymd,yday,treatment,bloom_heads,plantID)%>%
   group_by(plantID,yday,ymd, treatment)%>%
   summarize(bloom_heads)
 
 #wide format 
 foc_date_wide<-focals%>%filter(yday!=190)%>%
-  select(yday,ymd,treatment,bloom_heads,plantID)%>%
+  filter(plantID!="42UB")%>%
   group_by(plantID,yday,ymd,treatment)%>%
   summarize(bloom_heads)%>%
   spread(yday,bloom_heads)
@@ -86,8 +111,11 @@ pop5<-c("11UB","12UB","13UB","14UB","15UB","16UB","17UB","18UB",
 pop6<-c("21UB","22UB","23UB","24UB","25UB","26UB","27UB","28UB",
         "29UB","30UB","37UB","38UB","39UB","40UB","41UB","42UB")
 
-         
-flw_first_last<- foc_dates %>% group_by(plantID,treatment) %>%
+### take foc dates: each individual will have a first and last day of bloom denoted by values >0 in matrix
+###
+        ### this has been modified to remove plants that were added 
+
+flw_first_last<- foc_dates %>%group_by(plantID,treatment) %>%
   summarise(firstDay=ymd[first(which(bloom_heads>=1))],
             lastDay=ymd[last(which(bloom_heads >= 1))]) %>%ungroup()%>%
   mutate(pop=ifelse(plantID %in%pop1, "pop1",
@@ -119,10 +147,11 @@ ub_flw6<-ub_flw%>%filter(pop=="pop6")
 #full scene
 full_scene<-makeScene(flw_first_last, startCol="firstDay",
                       endCol="lastDay",idCol="plantID")
-
+### this is syncrhony across all plants!
 
 #Burned scene
-
+# we want to look at synchrony within the treatments
+# so now we'll separate out a burned and unburned scene
 
 Bscene<-makeScene(b_flw, startCol="firstDay",
                 endCol="lastDay",idCol="plantID")# add sub pop variable as a "year" column to compare synchrony within subpop )
@@ -140,7 +169,8 @@ Bscene3<-makeScene(b_flw3, startCol="firstDay",
                    endCol="lastDay",idCol="plantID")
 
 spBscene<- list('1' = Bscene1,'2' = Bscene2, '3' = Bscene3)
-
+#sp takes subpopulation level synchrony, rather than whole treatment
+# we expect greater synchrony among plants close in proximity (e.g. likely related)
 
 ###unburn
 Uscene4<-makeScene(ub_flw4, startCol="firstDay",
@@ -151,7 +181,7 @@ Uscene6<-makeScene(ub_flw6, startCol="firstDay",
                    endCol="lastDay",idCol="plantID")
 
 spUscene<- list('4' = Uscene4,'5' = Uscene5, '6' = Uscene6)
-
+#sp = subpopulatin scene
 
 ### plot general "scene"
 plotScene(Bscene, "t")#check github
@@ -166,16 +196,21 @@ plotScene(full_scene, "t")
 #
 ###mating summaries
 
+#burned summary
 b_sum<-matingSummary(Bscene, type="t")
 
+#unburned summary
 ub_sum<-matingSummary(Uscene,type="t")
 
+#sub pop split out burned
 spB_sum<-matingSummary(spBscene, type="t")
 
+#sub pop split out unburned
 spU_sum<-matingSummary(spUscene, type="t")
 
 
-#look at all the things in a summary!
+#look at all the things in a summary
+### so the summary may give us a way of looking at a quick 
 b_sum$sdDur
 b_sum$peak
 ub_sum$sdDur
@@ -195,7 +230,7 @@ ub_sum$sdSD
 #full synchrony
 fsynca<- synchrony(full_scene, "augspurger")
 fsynco<- synchrony(full_scene, "overlap")
-
+fsynck<- synchrony(full_scene,"kempenaers")
 #syncrony with augspurger
 bSyncA <- synchrony(Bscene, "augspurger")
 hist(bSyncA$ind[, 2], 30)
@@ -250,6 +285,8 @@ spUscene
 sp_bSyncA<- synchrony(spBscene, "augspurger")
 hist(sp_bSyncA$`1`$ind[, 2], 30)
 abline(v = sp_bSyncA$`1`$pop, col ="red", lwd = 2)
+abline(v = synchrony(spBscene, "augspurger", averageType = "mean")$`1`$pop,
+       col = "blue", lwd = 2)
 abline(v = synchrony(spBscene, "augspurger", averageType = "mean")$`2`$pop,
        col = "purple", lwd = 2)
 abline(v = synchrony(spBscene, "augspurger", averageType = "mean")$`3`$pop,
@@ -267,6 +304,15 @@ abline(v = synchrony(spBscene, "overlap", averageType = "median")$`2`$pop,
 abline(v = synchrony(spBscene, "overlap", averageType = "median")$`3`$pop,
        col = "green", lwd = 2)
 
+sp_bSyncK<- synchrony(spBscene, "kempenaers")
+hist(sp_bSyncK$`1`$ind[, 2], 30)
+abline(v = sp_bSyncK$`1`$pop, col ="red", lwd = 2)
+abline(v = synchrony(spBscene, "kempenaers", averageType = "mean")$`1`$pop,
+       col = "blue", lwd = 2)
+abline(v = synchrony(spBscene, "kempenaers", averageType = "mean")$`2`$pop,
+       col = "purple", lwd = 2)
+abline(v = synchrony(spBscene, "kempenaers", averageType = "mean")$`3`$pop,
+       col = "green", lwd = 2)
 #unburned
 
 sp_uSyncA<- synchrony(spUscene, "augspurger")
@@ -285,7 +331,7 @@ abline(v = synchrony(spUscene, "overlap", averageType = "mean")$`5`$pop,
 abline(v = synchrony(spUscene, "overlap", averageType = "mean")$`6`$pop,
        col = "green", lwd = 2)
 
-
+sp_uSyncK<- synchrony(spUscene, "kempenaers")
 
 
 
@@ -311,6 +357,7 @@ ubSynca<-ubSyncA$ind%>%rename(syn_aug=synchrony)# just the mean of individuals
 
 ubSynco<-ubSyncO$ind%>%rename(syn_o=synchrony)
 
+  
 ubsync<-ubSynca%>%full_join(ubSynco, by="id")
 
 
@@ -343,6 +390,8 @@ bsp_synca<-sp_bSyncA$`1`$ind%>%bind_rows(sp_bSyncA$`2`$ind)%>%bind_rows(sp_bSync
 bsp_Synco<-sp_bSyncO$`1`$ind%>%bind_rows(sp_bSyncO$`2`$ind)%>%bind_rows(sp_bSyncO$`3`$ind)%>%
   rename(syn_o_sp=synchrony)
 
+bsp_Sync
+
 bsp_sync<-bsp_synca%>%full_join(bsp_Synco, by="id")
 
 
@@ -351,34 +400,66 @@ sp_sync<-bsp_sync%>%bind_rows(usp_sync)
 ### now join with syn_scene and we have a full data frame!
 pheno_sync<-syn_scene%>%full_join(sp_sync,by="id")
 
+### now join with focal summary
+
+focal_pheno<-focal_summary%>% left_join(pheno_sync,by=c("plantID","treatment"))
+
+
+
+#some late blooming plants were added a bit later in the study
+#this is the list
+drop<-c("31UB","32UB","33UB","34UB","35UB", "36UB","37UB","38UB","39UB","40UB",
+        "41UB","42UB","43UB","44UB","44UB","45UB", "46UB","47UB","48UB","49UB",
+        "31B","32B","33B","34B","35B", "36B","37B","38B","39B","40B",
+        "41B","42B","43B","44B","44B","45B", "46B","47B","48B","49B")
+###focal_pheno_drop<-focal_pheno%>%filter(plantID%in%drop)
+#add a variable checking wheter a plant was an original or added
+focal_pheno<-focal_pheno%>%mutate(added=ifelse(plantID%in%drop,"added","original"))
+
+
+write.csv(focal_pheno,"data/focal_pheno.csv",row.names=FALSE)
+### If you'd like to continue go to the seed_phenology_merge script next
+
+#if you'd like to look at some of the relationships in the data some plotting code is included below!
 
 #### 
 # let's get some plots going of b/ub and averages 
+## bunches of plots
 
-
-
-pheno_sync%>%ggplot(aes(treatment, duration))+geom_violin()
+focal_pheno%>%ggplot(aes(treatment, duration,fill=treatment))+geom_boxplot()
 
 #duration with subpops split out
 
-pheno_sync%>%ggplot(aes(pop, duration,fill=treatment))+geom_boxplot()
+focal_pheno%>%ggplot(aes(treatment, syn_aug_sp,fill=treatment))+geom_boxplot()
 
-pheno_sync%>%ggplot(aes(pop, duration,fill=treatment))+geom_boxplot()
+focal_pheno%>%ggplot(aes(treatment, start,fill=treatment))+geom_boxplot()
 
+focal_pheno%>%ggplot(aes(pop,peak_flw_est,fill=treatment))+geom_boxplot()
 
-pheno_sync%>%ggplot(aes(pop, syn_aug,fill=treatment))+geom_boxplot()
+focal_pheno%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
 
-pheno_sync%>%ggplot(aes(treatment, syn_aug,fill=treatment))+geom_boxplot()
+focal_pheno_drop%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
 
-pheno_sync%>%ggplot(aes(pop, syn_aug_sp,fill=treatment))+geom_boxplot()
-
-pheno_sync%>%ggplot(aes(treatment, start,fill=treatment))+geom_boxplot()
-
-summary(glmer(syn_aug~treatment+(1|pop),family="quasibinomial",data=pheno_sync))#look up quasibinomial
+focal_summary%>%ggplot(aes(peak_flw_head,peak_flw_est,color=treatment))+geom_jitter()+
+  geom_smooth(method="lm")### peak_flw_est and peak_flw_head are pretty strongly positvely correlated
 
 
- 
- 
- 
- 
- 
+focal_pheno%>%ggplot(aes(treatment, syn_aug_sp,fill=treatment))+geom_boxplot()
+
+focal_pheno%>%ggplot(aes(treatment, syn_o_sp,fill=treatment))+geom_boxplot()
+
+focal_pheno%>%ggplot(aes(pop, syn_aug_sp,fill=treatment))+geom_boxplot()
+
+focal_pheno%>%ggplot(aes(treatment, start,fill=treatment))+geom_boxplot()
+
+focal_pheno_drop<-focal_pheno%>%filter(plantID%in%drop)
+
+focal_pheno%>%ggplot(aes(treatment, duration,fill=treatment))+geom_boxplot()
+focal_pheno_drop%>%ggplot(aes(treatment,syn_aug_sp,fill=treatment))+geom_boxplot()
+focal_pheno_dropped%>%ggplot(aes(treatment,duration,fill=treatment))+geom_boxplot()
+
+####all plants
+focal_pheno%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
+
+
+###

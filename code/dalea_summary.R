@@ -1,8 +1,53 @@
-### data summary
+### data summary for dan and gabby in early september 2019
+
+###
+
+
 library(tidyverse)
+library(tidyverse)
+#install.packages("mateable")
+library(mateable)
+library(lubridate)
+
+#coblooming floral community data
+cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
+
+#conspecific density and distance to nearest neighbor data
+con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
+
+#focal plant flowering, pollination, and stigma data
+focal_plt<-read.csv("data/non_database_csvs/focal_plant_stigma_26March2019.csv")
+
+
+#updated seed count data with all seed counts
+
+seed2<-read.csv("data/non_database_csvs/dalea_seed_counts_7May2019.csv")
+
+#first the focal plant data:
+
+#note this is duplicated in phenology data frame!
+is.numeric(focals$bloom_heads)
+focal_plt$X.bloom_flwheads<-as.numeric(focal_plt$X.bloom_flwheads)
+
+#create a summation of flowers, a treatment column, and a yday column
+focals<-focal_plt%>%
+  rename(bloom_heads=X.bloom_flwheads)%>%filter(!is.na(head1))%>%
+  mutate(total_flws_est=
+           ifelse(bloom_heads > 5,
+                  ((head1+head2+head3+head4+head5)/5)*bloom_heads,(head1+head2+head3+head4+head5)), 
+         treatment=ifelse(grepl("UB",plantID),'UB','B'))%>%
+  mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))
+
+### focal summary is used in dalea_sumary script
+focal_summary<-focals%>%
+  group_by(plantID)%>%
+  summarise(n_obs=n(),max_flowering_heads=max(bloom_heads),
+            mean_flowering_heads=mean(bloom_heads),
+            est_mean_daily_flw_presentation=mean(total_flws_est))
+#### this is contained in focal_pheno data frame
 
 ID_trt<-focals%>%select(plantID, treatment)%>%group_by(plantID,treatment)%>%summarize()
-
+###
 #anti_join to see who has no stigma data
 stig_check<-poll_stig%>%anti_join(ID_trt, c("plantID")) #check this one; likely 5 or 30 B
 #30B was 50B; manually changed in csv because having issues
@@ -56,7 +101,7 @@ stig_seed_sync2<-stig%>%left_join(seed_sync2, c("plantID","treatment"))
 ### edited visitation csv to fix two time entry errors; these errors wouldn't have effected outcome
 
 ####
-#pollinators
+#pollinator visitation
 levels(as.factor(focals$day))
 levels(as.factor(focals$round))
 levels(as.factor(visit$day))

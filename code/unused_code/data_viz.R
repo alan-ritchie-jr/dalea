@@ -3,19 +3,10 @@
 library(tidyverse)
 library(lubridate)
 
-### upload dataframes
+### take full df
 
-cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
+#####
 
-con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
-
-focal_plt<-read.csv("data/non_database_csvs/focal_plant_stigma_26March2019.csv")
-
-poll_stig<-read.csv("data/non_database_csvs/stigma-pollen-counts_23March2019.csv")
-
-visit<-read.csv("data/non_database_csvs/visitation_30Aug2019.csv")
-
-seed<-read.csv("data/non_database_csvs/seed-counts_26March2019.csv")
 
 
 
@@ -315,6 +306,7 @@ stig%>%
 seed_check<-seed%>%anti_join(ID_trt, c("plantID")) # should only be controls
 
 colnames(seed)
+
 ### calculate seed prod difference for each group, accoutn for # heads
 seed_count<-seed%>%left_join(ID_trt, c("plantID"))%>%
   rename(full=X.full_seeds, part=X.partial_full_seeds,empty=X.aborted_seeds,
@@ -341,42 +333,4 @@ drop<-c("31UB","32UB","33UB","34UB","35UB", "36UB","37UB","38UB","39UB","40UB",
         "41UB","42UB","43UB","44UB","44UB","45UB", "46UB","47UB","48UB","49UB",
         "31B","32B","33B","34B","35B", "36B","37B","38B","39B","40B",
         "41B","42B","43B","44B","44B","45B", "46B","47B","48B","49B")
-#drop values contained in drop from df
-seed_drop<-seed_count[!seed_count$plantID %in%drop,]
-seed_propdrop<-seed_prop[!seed_prop$plantID %in%drop,] 
-  
-  seed_count%>%
-  ggplot(aes(treatment, count, fill=seed_fill))+
-  geom_boxplot()+
-  labs(x="treatment" ,y="Total Seeds produced")+
-  ggtitle("Fig. 5: # Seeds by treatment")
-  
-  seed_drop%>%
-    ggplot(aes(treatment, count/heads, fill=seed_fill))+
-    geom_boxplot()+
-    labs(x="treatment" ,y="Total Seeds produced")+
-    ggtitle("Fig. 5: # Seeds by treatment",subtitle="remove added individuals")
-  
-  seed_propdrop%>%
-    ggplot(aes(treatment, (full/total_fruit), fill=treatment))+
-    geom_boxplot()+
-    labs(x="treatment" ,y="Prop seeds filled")+
-    ggtitle("Fig. 5: # Seeds by treatment",subtitle="remove added individuals")
-  
-  seed_propdrop%>%filter(!is.na(treatment))%>%
-    ggplot(aes(treatment, (full/total_fruit)/heads, fill=treatment))+
-    geom_boxplot()+
-    labs(x="treatment" ,y="Prop seeds filled/heads")+
-    ggtitle("Fig. 5: # Seeds by treatment",subtitle="remove added individuals")
-  
-  seed_count%>%
-    ggplot(aes(treatment, count/heads, fill=seed_fill))+
-    geom_boxplot()+
-    labs(x="treatment" ,y="Total Seeds produced/#floral heads")+
-    ggtitle("Fig. 5b: # Seeds by treatment",subtitle="offsetting for # of heads per plant")
-  
-  seed_prop%>%filter(!is.na(treatment))%>%
-    ggplot(aes(treatment, ((full)/total_fruit)/heads, fill=treatment))+
-    geom_boxplot()+
-    labs(x="treatment" ,y="Prop Seeds Fill")+
-    ggtitle("Fig. 5: # Seeds by treatment")
+
