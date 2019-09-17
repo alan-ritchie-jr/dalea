@@ -4,6 +4,7 @@
 
 library(car)
 library(reshape2)
+library(lubridate)
 library(tidyverse)
 library(lme4)
 library(glmmTMB)
@@ -49,13 +50,11 @@ colnames(seed)
 seed_prop2<-seed2%>%left_join(ID_trt, c("plantID"))%>%filter(plantID!="8UBC")%>%
   replace_na(list(treatment= "Control"))%>%filter(treatment!="Control")%>%
   rename(full=X.full_seeds, part=X.partial_full_seeds,empty=X.aborted_seeds,
-         heads=Num_Heads,abrt_heads=Aborted_Heads,dehisc_heads=Dehisced_Heads)%>% 
-  mutate_all(funs(replace(., is.na(.), 0)))%>%group_by(plantID)%>%
+         heads=Num_Heads,abrt_heads=Aborted_Heads,dehisc_heads=Dehisced_Heads)%>%
+  group_by(plantID)%>%
   summarise(n_collection_events=n(),heads=sum(heads),full=sum(full), part=sum(part), empty=sum(empty),
             total_fruit=full+part+empty, filling_frt_prop=(full+part)/total_fruit,
             seed_prop=full/total_fruit) 
-#### Note: 
-##### add in relative fitness measures, and standardized traits to seed prop2 ####)
 
 #join seed data with focal_phenology data
 
@@ -153,8 +152,13 @@ poll_check<-anti_join(visit,focal_flw, by=c("plantID","round_v"))#should be 0
 # get number of visits per interval, then divide by number of flowers on plant at that round
 visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, touches,bloom_heads,treatment)%>%
   group_by(plantID,round_v,treatment,day.y)%>%
-  summarise(n_visits=sum(!is.na(morphoID)), n_obs=n(),
-            flw_heads=(sum(bloom_heads))/n(), intervals=n_distinct(time),
+  mutate(bee_fly=ifelse(morphoID%in%"Syrphid","fly",ifelse(is.na(morphoID),"none","bee")))%>%
+  summarise(n_visits=sum(!is.na(morphoID)),flw_heads=(sum(bloom_heads))/n(), 
+            intervals=n_distinct(time),
+            n_bee_visits=sum(bee_fly=="bee"), 
+            n_fly_visits=sum(bee_fly=="fly"),bees_min=(n_bee_visits/intervals),
+            bees_head_min=(n_bee_visits/flw_heads/intervals),fly_min=(n_fly_visits/intervals),
+            fly_head_min=(n_fly_visits/flw_heads/intervals),
             visit_head_min=(n_visits/flw_heads)/intervals,
             visit_min=n_visits/intervals)
 
@@ -163,7 +167,10 @@ visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, to
 
 visit_summary_indi<-visit_summary%>%
   group_by(plantID, treatment)%>%
-  summarise(mean_n_visits=mean(n_visits),
+  summarise(mean_n_visits=mean(n_visits),mean_bee_visits=mean(n_bee_visits),
+            mean_bee_min=mean(bees_min), mean_bee_head_min=mean(bees_head_min),
+            mean_fly_visits=mean(n_fly_visits), mean_fly_min=mean(fly_min),
+            mean_fly_head_min=mean(fly_head_min),
             mean_visit_head_min=mean(visit_head_min),
             mean_visit_min=mean(visit_min))
 ### so we need to think about how to incorporate display size.
@@ -238,45 +245,6 @@ con_dens_summary<-con_dens_ID%>%
             mean_dens_5m=mean(X.dalpur_5m),
             mean_1st_NN=mean(NN_1),mean_2nd_NN=mean(NN_2),mean_3rd_NN=mean(NN_3))
 
-#now let's visualize
-
-#histograms
-
-ggplot(con_dens_ID, aes(NN_1,fill=treatment))+geom_histogram()+facet_grid(.~treatment)+ggtitle("Distribution of 1st Nearest Neighbor dist by treatment")
-
-#
-ggplot(con_dens_ID, aes(X.dalpur_1m,fill=treatment))+geom_histogram()+facet_grid(.~treatment)+
-  ggtitle("Distribution of conspecific density in 1m by treatment")
-#lotta zeroes
-
-ggplot(con_dens_ID, aes(X.dalpur_5m,fill=treatment))+geom_histogram()+
-  facet_grid(.~treatment)+ggtitle("Distribution of conspecific density in 5m by treatment")
-#fewer zeroes--more variance than 1m?
-
-###boxplots or violin plots
-
-ggplot(con_dens_ID, aes(treatment,NN_1,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean distance to NN1 by treatment")
-
-ggplot(con_dens_ID, aes(treatment,NN_2,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean conspecific density in 5m by treatment")
-
-ggplot(con_dens_ID, aes(treatment,X.dalpur_1m,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean conspecific density in 1m by treatment")
-
-ggplot(con_dens_ID, aes(treatment,X.dalpur_5m,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean conspecific density in 5m by treatment")
-
-
-### relationship over time?
-ggplot(con_dens_ID, aes(as.factor(round),X.dalpur_1m,color=treatment))+geom_boxplot()+
-  ggtitle("Change in conspecific density in 1m over time by treatment")
-
-ggplot(con_dens_ID, aes(as.factor(round),X.dalpur_5m,color=treatment))+geom_boxplot()+
-  ggtitle("Change in conspecific density in 5m over time by treatment")
-
-ggplot(con_dens_ID, aes(as.factor(round),NN_1,color=treatment))+geom_boxplot()+
-  ggtitle("Change in distance to NN1 over time by treatment")
 
 ### takeaways: mean density, and its patterns overtime look very similar for both treatments
 ### the peak number of flowering conspecific stems observed at 5m is higher in burned unit
@@ -299,5 +267,7 @@ stig_seed_sync_dens_vis<-indi_con_dens%>%left_join(stig_seed_sync_vis, c("plantI
 #### this is the full data frame--a summary of means of the variables of interest for each invidual
 full_dalea_df<-stig_seed_sync_dens_vis%>%left_join(indi_cobloom_dens,c("plantID","treatment"))
 ######
+
+full_dalea_df%>%ggplot(aes(treatment,mean_NN_1,color=treatment))+geom_boxplot()
 
 

@@ -1,62 +1,14 @@
 #this requires fully merged dalea df from stigma_seed_sync_consp
-
+library(DHARMa)
+library(lme4)
 ##models
-trt_mod<-glmer(full/total_fruit~treatment+(1|pop)+(1|id),
-               weights=total_fruit,family=binomial,data=seed_sync)
-
-summary(trt_mod)
-
-
-trt_mod2<-glmer(full/total_fruit~treatment+(1|pop)+(1|id),
-                weights=total_fruit,family=binomial,data=seed_sync2)
-
-summary(trt_mod2)
-
-
-####
-sim_trt<-simulateResiduals(fittedModel = trt_mod,n=1000)
-
-plot(sim_trt)
-
-testDispersion(sim_trt)
-
-
-summary(glmer(full/total_fruit~start*treatment+(1|pop),
-              weights=total_fruit,family=binomial,data=seed_sync))
-
-
-summary(glmer((full+part)/total_fruit~start*treatment+(1|pop),
-              weights=total_fruit,family=binomial,data=seed_sync))
-
-# show to dan, check assumption
-#check overdispersion
-#from bolker faq
-overdisp_fun <- function(model) {
-  rdf <- df.residual(model)
-  rp <- residuals(model,type="pearson")
-  Pearson.chisq <- sum(rp^2)
-  prat <- Pearson.chisq/rdf
-  pval <- pchisq(Pearson.chisq, df=rdf, lower.tail=FALSE)
-  c(chisq=Pearson.chisq,ratio=prat,rdf=rdf,p=pval)
-}
-
-
+#seed vs flower peak
 #try out observation level random effect to deal with overdispersion
 
-mod1<-glmer(full/total_fruit~start*treatment+(1|pop),
-            weights=total_fruit,family=binomial,data=seed_sync)
-summary(mod1)
 
-mod1_olre<-glmer(full/total_fruit~start*treatment+duration+(1|pop)+ (1|id),
-                 weights=total_fruit,family=binomial,data=seed_sync)
-summary(mod1_olre)
-
-mod2<- glmmTMB(full~start*treatment+duration+(1|pop),family=nbinom1,data=seed_sync)
-summary(mod2)
-
-mod3<- glmer.nb(full~start+treatment+duration+(1|pop),
-                data=seed_sync)
-
+mod3<-glmer(cbind(full, total_fruit)~scale(mean_date_flw)*treatment+(1|plantID),
+          family=binomial,data=full_dalea_df)
+summary(mod3)#same result as lm :)
 
 ##dharma check of overdisp
 

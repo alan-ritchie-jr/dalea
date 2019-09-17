@@ -73,11 +73,13 @@ focal_summary<-focals%>%
   group_by(plantID,treatment)%>%
   summarise(n_focal_obs=n(),max_flowering_heads=max(bloom_heads),
             mean_flowering_heads=mean(bloom_heads),
-            est_mean_daily_flw_presentation=mean(total_flws_est),
-            peak_flw_head=yday[which.max(bloom_heads)],peak_flw_est=yday[which.max(total_flws_est)])
-
+            mean_daily_flowers=mean(total_flws_est),
+            mean_date_flw= round(weighted.mean(yday,total_flws_est)),
+            mean_date_heads=round(weighted.mean(yday,bloom_heads)))
 
 ### focal summary is now manipulated for use with mateable
+
+### now to calculate other phenological measures we need to prepare a data frame for mateable
 
 #summarize a count of blooming focal plants per day and add yday component
 # find
@@ -436,7 +438,7 @@ focal_pheno%>%ggplot(aes(treatment, start,fill=treatment))+geom_boxplot()
 
 focal_pheno%>%ggplot(aes(pop,peak_flw_est,fill=treatment))+geom_boxplot()
 
-focal_pheno%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
+focal_pheno%>%ggplot(aes(treatment,mean_date_flw,fill=treatment))+geom_boxplot()
 
 focal_pheno_drop%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
 
@@ -446,11 +448,11 @@ focal_summary%>%ggplot(aes(peak_flw_head,peak_flw_est,color=treatment))+geom_jit
 
 focal_pheno%>%ggplot(aes(treatment, syn_aug_sp,fill=treatment))+geom_boxplot()
 
-focal_pheno%>%ggplot(aes(treatment, syn_o_sp,fill=treatment))+geom_boxplot()
+focal_pheno%>%ggplot(aes(treatment, mean_flowering_heads,fill=treatment))+geom_boxplot()
 
 focal_pheno%>%ggplot(aes(pop, syn_aug_sp,fill=treatment))+geom_boxplot()
 
-focal_pheno%>%ggplot(aes(treatment, start,fill=treatment))+geom_boxplot()
+focal_pheno%>%ggplot(aes(treatment, est_mean_daily_flw_presentation,fill=treatment))+geom_boxplot()
 
 focal_pheno_drop<-focal_pheno%>%filter(plantID%in%drop)
 
@@ -459,7 +461,14 @@ focal_pheno_drop%>%ggplot(aes(treatment,syn_aug_sp,fill=treatment))+geom_boxplot
 focal_pheno_dropped%>%ggplot(aes(treatment,duration,fill=treatment))+geom_boxplot()
 
 ####all plants
-focal_pheno%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
+focal_summary2%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
 
 
+summary(lm(peak_flw_est~treatment,data=focal_summary2))
+
+summary(lm(mean_date_flw~treatment,data=focal_pheno))
+
+qqPlot(lm(mean_date_flw~treatment,data=focal_pheno))
+
+qqPlot(lm(peak_flw_est~treatment,data=focal_summary2))
 ###
