@@ -502,6 +502,12 @@ visit_summary%>%ggplot(aes(treatment,n_bee_visits/flw_heads/intervals,fill=treat
 visit_summary%>%ggplot(aes(as.factor(day.y),n_bee_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+
   ggtitle("Daily number of bee visits per head per interval",subtitle="change over time")
 
+### compare with mean
+
+full_dalea_df%>%ggplot(aes(treatment,mean_bee_head_min,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean bee visits per head per interval")
+
+
 #distribution of bee visits
 visit_summary%>%ggplot(aes(n_bee_visits/flw_heads/intervals,fill=treatment))+geom_density()+
   ggtitle("Distribution of bee visits per head per interval")+facet_grid(.~treatment)
@@ -519,6 +525,11 @@ visit_summary%>%ggplot(aes(treatment,n_fly_visits/flw_heads/intervals,fill=treat
 
 visit_summary%>%ggplot(aes(as.factor(day.y),n_fly_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+
   ggtitle("Daily number of fly visits per head intervals",subtitle="change over time")
+
+
+# compare to mean
+full_dalea_df%>%ggplot(aes(treatment,mean_fly_head_min,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean fly visits per head per interval")
 
 #distribution of fly visits
 visit_summary%>%ggplot(aes(n_fly_visits/flw_heads/intervals,fill=treatment))+geom_density()+
@@ -697,3 +708,28 @@ ggplot(NN_daily, aes(NN_1,fill=treatment))+geom_density()+
 #NN2
 ggplot(NN_daily, aes(NN_2,fill=treatment))+geom_histogram()+
   facet_grid(.~treatment)+ggtitle("Distribution of NN_2 by treatment")
+
+
+
+
+
+##############
+### seeds
+############
+
+
+full_dalea_df%>%ggplot(aes(treatment,full,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean full seeds per treaetment")
+
+full_dalea_df%>%ggplot(aes(treatment,full/total_fruit,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean proportion of filled seeds per treaetment")
+
+### over start date
+full_dalea_df%>%ggplot(aes(as.factor(start),full/total_fruit,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean proportion of filled seeds per treaetment", subtitle="over start date")
+
+full_dalea_df%>%ggplot(aes(full/total_fruit,fill=treatment))+geom_histogram()+
+  facet_grid(.~treatment)+ggtitle("Distirubtion of proportion filled seeds per treaetment")
+
+full_dalea_df%>%ggplot(aes(full,fill=treatment))+geom_histogram()+
+  facet_grid(.~treatment)+ggtitle("Distirubtion of filled seeds per treaetment")
