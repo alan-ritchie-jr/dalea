@@ -81,7 +81,6 @@ stig<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))
            aster_pollen+
            dcand_pollen+
            unknown_hetero_pollen)%>%
-  
   #now we want to take each plant and take an average of each pollen type per stigma and total deposiiton period
   group_by(plantID,treatment)%>%
   summarise(n_stig=n(),n_unpollinated_stigma=length(total_pollen[total_pollen==0]),
@@ -150,8 +149,7 @@ poll_vis<-left_join(visit,focal_flw, by=c("plantID","round_v"))%>%
 poll_check<-anti_join(visit,focal_flw, by=c("plantID","round_v"))#should be 0
 
 # get number of visits per interval, then divide by number of flowers on plant at that round
-visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, touches,bloom_heads,treatment)%>%
-  group_by(plantID,round_v,treatment,day.y)%>%
+visit_summary<-poll_vis%>%group_by(plantID,round_v,treatment,day.y)%>%
   mutate(bee_fly=ifelse(morphoID%in%"Syrphid","fly",ifelse(is.na(morphoID),"none","bee")))%>%
   summarise(n_visits=sum(!is.na(morphoID)),flw_heads=(sum(bloom_heads))/n(), 
             intervals=n_distinct(time),
@@ -167,7 +165,7 @@ visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, to
 
 visit_summary_indi<-visit_summary%>%
   group_by(plantID, treatment)%>%
-  summarise(mean_n_visits=mean(n_visits),mean_bee_visits=mean(n_bee_visits),
+  summarise(n_visit_obs=n(),mean_n_visits=mean(n_visits),mean_bee_visits=mean(n_bee_visits),
             mean_bee_min=mean(bees_min), mean_bee_head_min=mean(bees_head_min),
             mean_fly_visits=mean(n_fly_visits), mean_fly_min=mean(fly_min),
             mean_fly_head_min=mean(fly_head_min),
@@ -252,10 +250,9 @@ con_dens_summary<-con_dens_ID%>%
 
 ### Now calculate individual level means
 indi_con_dens<-con_dens_ID%>%
-  group_by(plantID,treatment)%>%drop_na()%>%
+  group_by(plantID,treatment)%>%
   summarize(n_density_obs=n(),mean_dens_1m=mean(X.dalpur_1m),
-            mean_dens_5m=mean(X.dalpur_5m),
-            mean_NN_1=mean(NN_1),mean_NN_2=mean(NN_2),mean_NN_3=mean(NN_3))
+            mean_dens_5m=mean(X.dalpur_5m))
 
 
 ### merge indi_con_dens and stig_sync_seed_vis
@@ -265,9 +262,27 @@ stig_seed_sync_dens_vis<-indi_con_dens%>%left_join(stig_seed_sync_vis, c("plantI
 # and cobloom data for full dalea df
 
 #### this is the full data frame--a summary of means of the variables of interest for each invidual
-full_dalea_df<-stig_seed_sync_dens_vis%>%left_join(indi_cobloom_dens,c("plantID","treatment"))
+full_dalea_df<-stig_seed_sync_dens_vis%>%left_join(indi_cobloom_dens,c("plantID","treatment"))%>%filter(!is.na(treatment))
 ######
 
-full_dalea_df%>%ggplot(aes(treatment,mean_NN_1,color=treatment))+geom_boxplot()
+
+#this is the TOTAL number of observation going into our summaries
+#daily summary sample sizes are in plots_histograms
+sample_sizes<-full_dalea_df%>%
+  group_by(treatment)%>%summarise(n_indi=n_distinct(plantID),density_n=sum(n_density_obs,na.rm=TRUE),
+                                  visit_n=sum(n_visit_obs,na.rm=TRUE),
+                                  stigma_n=sum(n_stig,na.rm=TRUE),
+                                  pheno_n=sum(n_focal_obs,na.rm=TRUE)
+                                  )
 
 
+
+full_dalea_df%>%ggplot(aes(mean_date_flw,start,color=treatment))+geom_point()+geom_smooth(method = "lm")
+full_dalea_df%>%ggplot(aes(start,seed_prop,color=treatment))+geom_point()+geom_smooth(method="lm")
+
+seed_time_mod<-lm(mean_NN_1~treatment*mean_date_flw,data=full_dalea_df)
+summary(seed_time_mod)
+
+qqPlot(residuals(seed_time_mod))
+
+     

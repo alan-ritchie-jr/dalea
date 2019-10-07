@@ -74,6 +74,7 @@ focal_summary<-focals%>%
   summarise(n_focal_obs=n(),max_flowering_heads=max(bloom_heads),
             mean_flowering_heads=mean(bloom_heads),
             mean_daily_flowers=mean(total_flws_est),
+            uw_mean_date= round(mean(yday)),
             mean_date_flw= round(weighted.mean(yday,total_flws_est)),
             mean_date_heads=round(weighted.mean(yday,bloom_heads)))
 
@@ -186,7 +187,9 @@ spUscene<- list('4' = Uscene4,'5' = Uscene5, '6' = Uscene6)
 #sp = subpopulatin scene
 
 ### plot general "scene"
-plotScene(Bscene, "t")#check github
+plotScene(Bscene,"t",pt.cex=1,quartile.lwd=2,peak.col =2,lwd=2)
+lin
+plotSc#check github 
 plotScene(Uscene,"t")
 
 #subpop plots
@@ -228,7 +231,15 @@ ub_sum$meanSD
 b_sum$sdSD
 ub_sum$sdSD
 
+yday(b_sum$peak)
 
+yday(spB_sum$`1`$peak)
+yday(spB_sum$`2`$peak)
+yday(spB_sum$`3`$peak)
+
+
+yday("2018-07-30")
+yday
 #full synchrony
 fsynca<- synchrony(full_scene, "augspurger")
 fsynco<- synchrony(full_scene, "overlap")
@@ -278,7 +289,7 @@ ubSyncsp<-synchrony(Uscene, "sync_prop")
 
 
 ### subpops
-spBscene
+
 
 spUscene
 
@@ -392,7 +403,6 @@ bsp_synca<-sp_bSyncA$`1`$ind%>%bind_rows(sp_bSyncA$`2`$ind)%>%bind_rows(sp_bSync
 bsp_Synco<-sp_bSyncO$`1`$ind%>%bind_rows(sp_bSyncO$`2`$ind)%>%bind_rows(sp_bSyncO$`3`$ind)%>%
   rename(syn_o_sp=synchrony)
 
-bsp_Sync
 
 bsp_sync<-bsp_synca%>%full_join(bsp_Synco, by="id")
 
@@ -419,6 +429,9 @@ drop<-c("31UB","32UB","33UB","34UB","35UB", "36UB","37UB","38UB","39UB","40UB",
 focal_pheno<-focal_pheno%>%mutate(added=ifelse(plantID%in%drop,"added","original"))
 
 
+
+
+
 write.csv(focal_pheno,"data/focal_pheno.csv",row.names=FALSE)
 ### If you'd like to continue go to the seed_phenology_merge script next
 
@@ -428,7 +441,7 @@ write.csv(focal_pheno,"data/focal_pheno.csv",row.names=FALSE)
 # let's get some plots going of b/ub and averages 
 ## bunches of plots
 
-focal_pheno%>%ggplot(aes(treatment, duration,fill=treatment))+geom_boxplot()
+focal_pheno%>%ggplot(aes(treatment, dist_peak,fill=treatment))+geom_boxplot()
 
 #duration with subpops split out
 

@@ -4,7 +4,7 @@
 
 library(lubridate)
 library(tidyverse)
-
+library(car)
 #phenology measures (and some trait means)
 focal_pheno<-read.csv("data/focal_pheno.csv")
 
@@ -16,7 +16,7 @@ focal_plt<-read.csv("data/non_database_csvs/focal_plant_stigma_26March2019.csv")
 seed2<-read.csv("data/non_database_csvs/dalea_seed_counts_7May2019.csv")
 
 cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
-
+view(focal_flw)
 
 #conspecific density and distance to nearest neighbor data
 con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
@@ -51,6 +51,10 @@ focal_pheno%>%ggplot(aes(mean_date_flw,fill=treatment))+geom_density()+
 focal_pheno%>%ggplot(aes(mean_date_flw,fill=treatment))+geom_histogram()+
   ggtitle("Distribution of mean date of flowering by # flws")+facet_grid(.~treatment)
 
+
+focal_pheno%>%ggplot(aes(mean_date_heads,syn_aug,color=treatment))+geom_point()+
+  geom_smooth(method="lm")+
+  ggtitle("individual peak of flowering vs synchrony")
 
 #flowering display
 #first up: mean_flw_heads: mean # of flower heads displayed by a plant per day
@@ -94,7 +98,34 @@ focal_pheno%>%ggplot(aes(max_flowering_heads,fill=treatment))+geom_histogram()+
   ggtitle("Distribution of mean daily flowers")+facet_grid(.~treatment)
 
 
+### sync
 
+#########
+#### the mean of estimated daily flower production
+focal_pheno%>%ggplot(aes(treatment,syn_aug_sp,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean synchrony at pop level")
+### 
+
+#distribution of mean flowering heads
+focal_pheno%>%ggplot(aes(syn_aug_sp,fill=treatment))+geom_density()+
+  ggtitle("Distribution of synchrony at the population level")+facet_grid(.~treatment)
+
+#as a histogram
+focal_pheno%>%ggplot(aes(syn_aug_sp,fill=treatment))+geom_histogram()+
+  ggtitle("Distribution of sync at pop level")+facet_grid(.~treatment)
+
+#calculated among all individuals in treatment
+focal_pheno%>%ggplot(aes(treatment,syn_aug,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean synchrony")
+### 
+
+full_dalea_df%>%ggplot(aes(mean_date_flw,mean_dalpur,color=treatment))+geom_point()+geom_smooth(method="lm")+
+  ggtitle("density by sync")
+
+
+summary(lm(sqrt(mean_amocan)~scale(mean_date_flw)*treatment,full_dalea_df))
+
+qqPlot(lm(sqrt(mean_amocan)~scale(mean_date_flw)*treatment,full_dalea_df))
 #################################################
 #### Second: Focal plant traits--
 #####################
@@ -110,7 +141,6 @@ focals<-focal_plt%>%
                   ((head1+head2+head3+head4+head5)/5)*bloom_heads,(head1+head2+head3+head4+head5)), 
          treatment=ifelse(grepl("UB",plantID),'UB','B'))%>%
   mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))
-
 
 
 #### # of blooming heads per plant per round 
@@ -179,22 +209,22 @@ focals%>%filter(total_flws_est>0)%>%ggplot(aes(total_flws_est,fill=treatment))+g
 #######################
 #### now looking at mean vs daily (AKA per round) pollen deposition on stigma
 ###########################
-
-ID_trt<-focals%>%select(plantID, treatment)%>%group_by(plantID,treatment)%>%summarize()
+view(focal_pheno)
+ID_trt<-focal_pheno%>%select(plantID, treatment,pop)%>%group_by(plantID,treatment,pop)%>%summarize()
 
 #anti_join to see who has no stigma data
 stig_check<-poll_stig%>%anti_join(ID_trt, c("plantID")) #should be 0
 
 
 ###now make a dataframe of per day pollen observations
-stig_daily_mean<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))%>%
-  group_by(plantID,round,month,day,year,treatment)%>%
+stig_daily<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))%>%
+  group_by(plantID,round,month,day,year,treatment,pop)%>%
   mutate(date=paste(month,day,year,sep="-"))%>%
   mutate(mdy=mdy(date),yday=yday(mdy), total_pollen=dpurp_pollen+amocan_pollen+
            aster_pollen+
            dcand_pollen+
            unknown_hetero_pollen)%>%
-  group_by(plantID,treatment,yday,mdy)%>%
+  group_by(plantID,treatment,yday,mdy,pop)%>%
   summarise(n_stig=n(),n_unpollinated_stigma=length(total_pollen[total_pollen==0]),
             sum_dalpur=sum(dpurp_pollen), mean_dalpur=mean(dpurp_pollen),
             sum_amocan=sum(amocan_pollen),
@@ -222,7 +252,7 @@ stig_daily_mean<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpu
 ## mean of daily means
 ### vs mean overall
   
-full_dalea_df%>%ggplot(aes(treatment,mean_dalpur,fill=treatment))+geom_boxplot()+
+full_dalea_df%>%ggplot(aes(treatment,mean_dalpur,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Overall mean number of pollen grains")
   
 ################
@@ -245,11 +275,12 @@ stig_daily%>%ggplot(aes(n_stig,fill=treatment))+geom_histogram()+
 ############################
 ####daily total pollen deposition
 #############################
-stig_daily%>%ggplot(aes(treatment,mean_total_pollen,fill=treatment))+geom_boxplot()+
+stig_daily%>%ggplot(aes(treatment,mean_total_pollen,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Mean number of pollen grains")
 
 
 stig_daily%>%ggplot(aes(as.factor(yday),mean_total_pollen,fill=treatment))+geom_boxplot()+
+  facet_grid(.~pop)+
   ggtitle("Daily mean pollen deposited",subtitle="change over time")
 
 
@@ -279,17 +310,24 @@ full_dalea_df%>%ggplot(aes(mean_total_pollen,fill=treatment))+geom_density()+
   ggtitle("Distribution of mean total pollen grains overall")+facet_grid(.~treatment)
 # fatter, not centered near 0
 
-#####
-# NOTE: the full_dalea_df calculates an overall mean, rather than the mean of daily means.
-### Should we calculated the mean of daily means?
-
+#####Zero inflated model for pollen data
+install.packages("countreg",repos="http://R-Forge.R-project.org")
+library(countreg)
+stig_daily_mod<-glm.nb(sum_amocan~treatment,data=stig_daily)
+stig_zero<-zeroinfl(sum_amocan~ treatment|yday, data = stig_daily,
+                    dist = "negbin", EM = TRUE)
+summary(stig_zero)
+summary(stig_daily_mod)
+rootogram(stig_zero,main="ZINB",ylim = c(-5, 15), max = 50)
+qqrplot(stig_zero,main="ZINB")
+plot(stig_zero)
 ### #########################
 ###dalea pollen grains daily
 ####################
-stig_daily%>%ggplot(aes(treatment,mean_dalpur,fill=treatment))+geom_boxplot()+
+stig_daily%>%ggplot(aes(treatment,mean_dalpur,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
 ggtitle("Mean number of dalea grains (daily")
 
-stig_daily%>%ggplot(aes(as.factor(yday),mean_dalpur,fill=treatment))+geom_boxplot()+
+stig_daily%>%ggplot(aes(as.factor(yday),mean_dalpur,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily mean dalpur pollen deposited",subtitle="change over time")
 
 ###bivariate plot of sum against mean
@@ -317,10 +355,10 @@ full_dalea_df%>%ggplot(aes(mean_dalpur,fill=treatment))+geom_density()+
 ### amorpha
 ###############
 
-stig_daily%>%ggplot(aes(treatment,mean_amocan,fill=treatment))+geom_boxplot()+
+stig_daily%>%ggplot(aes(treatment,mean_amocan,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily mean number of amorpha grains")
 
-stig_daily%>%ggplot(aes(as.factor(yday),mean_amocan,fill=treatment))+geom_boxplot()+
+stig_daily%>%ggplot(aes(as.factor(yday),mean_amocan,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily mean amocan pollen deposited",subtitle="change over time")
 
 
@@ -357,8 +395,9 @@ full_dalea_df%>%ggplot(aes(mean_amocan,fill=treatment))+geom_histogram()+
 stig_daily%>%ggplot(aes(treatment,mean_hetero,fill=treatment))+geom_boxplot()+
   ggtitle("Mean number of hetero grains (daily")
 
-stig_daily%>%ggplot(aes(as.factor(yday),mean_hetero,fill=treatment))+geom_boxplot()+
+stig_daily%>%ggplot(aes(as.factor(yday),mean_hetero,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily mean hetero pollen deposited",subtitle="change over time")
+### same story as amorpha
 
 ###bivariate plot of sum against mean
 stig_daily%>%ggplot(aes(sum_hetero,mean_hetero,color=treatment))+geom_point()+
@@ -424,13 +463,14 @@ focal_flw<-focal_flw%>%
 ### since this doesn't affect the actual results I'm removing them
 
 poll_vis<-left_join(visit,focal_flw, by=c("plantID","round_v"))%>%
-  filter(bloom_heads>0)%>%filter(!is.na(time))# you have this to remove cases where there were 0 heads blooming, but check real quick
+  filter(bloom_heads>0)%>%filter(!is.na(time))%>%left_join(ID_trt,by=c("plantID", "treatment"))
+# you have this to remove cases where there were 0 heads blooming, but check real quick
 poll_check<-anti_join(visit,focal_flw, by=c("plantID","round_v"))#should be 0
 
 # get number of visits per interval, then divide by number of flowers on plant at that round
-visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, touches,bloom_heads,treatment)%>%
+visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, touches,pop,bloom_heads,treatment)%>%
   mutate(bee_fly=ifelse(morphoID%in%"Syrphid","fly",ifelse(is.na(morphoID),"none","bee")))%>%
-  group_by(plantID,round_v,treatment,day.y)%>%
+  group_by(plantID,round_v,treatment,day.y,pop)%>%
   summarise(n_visits=sum(!is.na(morphoID)),n_bee_visits=sum(bee_fly=="bee"), 
             n_fly_visits=sum(bee_fly=="fly"),
             n_obs=n(),
@@ -443,7 +483,7 @@ visit_summary<-poll_vis%>%select(plantID, round_v, day.y,time, morphoID,date, to
 visit_summary%>%ggplot(aes(treatment,visit_min,fill=treatment))+geom_boxplot()+
   ggtitle("Visits per min (daily")
 
-visit_summary%>%ggplot(aes(as.factor(day.y),visit_min,fill=treatment))+geom_boxplot()+
+visit_summary%>%ggplot(aes(as.factor(day.y),visit_min,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily visits per min",subtitle="change over time")
 
 #distribution of visit min
@@ -466,10 +506,10 @@ full_dalea_df%>%ggplot(aes(mean_visit_min,fill=treatment))+geom_histogram()+
 
 #### how visits per head per minute
 
-visit_summary%>%ggplot(aes(treatment,visit_head_min,fill=treatment))+geom_boxplot()+
+visit_summary%>%ggplot(aes(treatment,visit_head_min,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily visits per head per min")
 
-visit_summary%>%ggplot(aes(as.factor(day.y),visit_head_min,fill=treatment))+geom_boxplot()+
+visit_summary%>%ggplot(aes(as.factor(day.y),visit_head_min,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily visits per head per min",subtitle="change over time")
 
 #distribution of mean amorpha pollen
@@ -496,10 +536,10 @@ full_dalea_df%>%ggplot(aes(mean_visit_head_min,fill=treatment))+geom_histogram()
 
 #n bee visits
 
-visit_summary%>%ggplot(aes(treatment,n_bee_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+
+visit_summary%>%ggplot(aes(treatment,n_bee_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily number of bee visits per head per interval")
 
-visit_summary%>%ggplot(aes(as.factor(day.y),n_bee_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+
+visit_summary%>%ggplot(aes(as.factor(day.y),n_bee_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily number of bee visits per head per interval",subtitle="change over time")
 
 ### compare with mean
@@ -515,16 +555,17 @@ visit_summary%>%ggplot(aes(n_bee_visits/flw_heads/intervals,fill=treatment))+geo
 
 ### looks like bee visits per head per interval are higher for burned plants
 ###
-visit_summary%>%ggplot(aes(n_bee_visits/flw_heads/intervals,fill=treatment))+geom_histogram()+
-  ggtitle("Distribution of bee visits per head per interval")+facet_grid(.~treatment)
+visit_summary%>%ggplot(aes(n_bee_visits/flw_heads/intervals,fill=treatment))+geom_histogram()+facet_grid(treatment~pop)+
+  ggtitle("Distribution of bee visits per head per interval")
+### distribution of values similar between groups
 
 ###now comapre to flies
 
-visit_summary%>%ggplot(aes(treatment,n_fly_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+
+visit_summary%>%ggplot(aes(treatment,n_fly_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Daily number fly visits per head per interval")
 
 visit_summary%>%ggplot(aes(as.factor(day.y),n_fly_visits/flw_heads/intervals,fill=treatment))+geom_boxplot()+
-  ggtitle("Daily number of fly visits per head intervals",subtitle="change over time")
+  facet_grid(.~pop)+ggtitle("Daily number of fly visits per head intervals",subtitle="change over time")
 
 
 # compare to mean
@@ -556,7 +597,7 @@ cobloom_daily<-cobloom_ID%>%
   mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))%>%
   group_by(plantID,treatment,yday)%>%
 mutate(richness=ifelse(is.na(plant_genus_sp), 0, n_distinct(plant_genus_sp)))%>%ungroup()%>%
-  group_by(plantID,treatment,yday)%>%
+  group_by(plantID,treatment,yday,pop)%>%
   summarize(daily_richness=((sum(richness)/n())),
             avg_blooms=mean(X.floral_units),
             sum_blooms=sum(X.floral_units))
@@ -577,10 +618,10 @@ ggplot(cobloom_daily, aes(daily_richness,fill=treatment))+geom_histogram()+facet
 
 
 ##density
-ggplot(cobloom_daily, aes(treatment,avg_blooms,fill=treatment))+geom_boxplot()+
+ggplot(cobloom_daily, aes(treatment,avg_blooms,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle(" coblooming density by treatment")
 ###
-ggplot(cobloom_daily, aes(as.factor(yday),avg_blooms,fill=treatment))+geom_boxplot()+
+ggplot(cobloom_daily, aes(as.factor(yday),avg_blooms,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Change in mean coblooming density over time by treatment")
 
 ggplot(cobloom_daily, aes(avg_blooms,fill=treatment))+geom_histogram()+facet_grid(.~treatment)+
@@ -630,14 +671,14 @@ sum(is.na(con_dens_ID$NN_3))/sum(!is.na(con_dens_ID$NN_3))
 
 con_dens_daily<-con_dens_ID%>%filter(!is.na(round))%>%
   mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))%>%
-  select(plantID, treatment,yday,X.dalpur_1m,X.dalpur_5m)%>%
-  group_by(plantID,treatment,yday)%>% rename(consp_1m=X.dalpur_1m, consp_5m=X.dalpur_5m)
+  select(plantID, treatment,yday,X.dalpur_1m,X.dalpur_5m,pop)%>%
+  group_by(plantID,treatment,yday,pop)%>% rename(consp_1m=X.dalpur_1m, consp_5m=X.dalpur_5m)
 
 #now for nearest neighbor; which has some NAs
 ## drop all NAs
 NN_daily<-con_dens_ID%>%filter(!is.na(round))%>%
   mutate(date=paste(year,month,day, sep="-"))%>%mutate(ymd=ymd(date),yday=yday(ymd))%>%
-  select(plantID, treatment,yday,NN_1,NN_2,NN_3)%>%
+  select(plantID, treatment,yday,pop,NN_1,NN_2,NN_3)%>%
   group_by(plantID,treatment,yday)
 
 
@@ -663,10 +704,10 @@ ggplot(con_dens_daily, aes(consp_5m,fill=treatment))+geom_density()+
 ###boxplots or violin plots
 
 
-ggplot(con_dens_daily, aes(treatment,consp_1m,fill=treatment))+geom_boxplot()+
-  ggtitle("Mean conspecific density in 1m by treatment")
-
 ggplot(con_dens_daily, aes(treatment,consp_5m,fill=treatment))+geom_boxplot()+
+  ggtitle("Mean conspecific density in 5m by treatment")
+
+ggplot(con_dens_daily, aes(treatment,consp_5m,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Mean conspecific density in 5m by treatment")
 
 ## over time
@@ -676,10 +717,12 @@ ggplot(con_dens_daily, aes(as.factor(yday),consp_1m,fill=treatment))+geom_boxplo
 ggplot(con_dens_daily, aes(as.factor(yday),consp_5m,fill=treatment))+geom_boxplot()+
   ggtitle("Change in conspecific density in 5m over time by treatment")
 
+### theres a population pattern to number of dalea in 5m, which makes sense.
+
 
 ### NN-- note that you lose observations due to NAs as these data were only taken when focal plants were flowering
 ##boxplot
-ggplot(NN_daily, aes(treatment,NN_1,fill=treatment))+geom_boxplot()+
+ggplot(NN_daily, aes(treatment,NN_1,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Mean distance to NN1 by treatment")
 
 ggplot(NN_daily, aes(treatment,NN_2,fill=treatment))+geom_boxplot()+
@@ -689,11 +732,13 @@ ggplot(NN_daily, aes(treatment,NN_3,fill=treatment))+geom_boxplot()+
   ggtitle("Mean distance to NN3 by treatment")
 
 #change over time
-ggplot(NN_daily, aes(as.factor(yday),NN_1,fill=treatment))+geom_boxplot()+
+ggplot(NN_daily, aes(as.factor(yday),NN_1,fill=treatment))+geom_boxplot()+facet_grid(.~pop)+
   ggtitle("Change in distance to NN1 over time by treatment")
 
+# these data aren't as good as density. too many zeroes.
 
-ggplot(NN_daily, aes(as.factor(yday),NN_2,fill=treatment))+geom_boxplot()+
+
+ggplot(NN_daily, aes(as.factor(yday),NN_2,fill=treatment))+geom_boxplot()
   ggtitle("Change in distance to NN2 over time by treatment")
 #pretty similar to NN1
 
