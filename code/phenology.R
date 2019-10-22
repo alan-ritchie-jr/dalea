@@ -71,7 +71,7 @@ focals<-focal_plt%>%
 focal_summary<-focals%>%
   filter(plantID!="42UB")%>%#42UB had no flowers observed so is dropped
   group_by(plantID,treatment)%>%
-  summarise(n_focal_obs=n(),max_flowering_heads=max(bloom_heads),
+  summarise(n_focal_obs=n(),n_stems=max(X.stems,na.rm=T),max_flowering_heads=max(bloom_heads),
             mean_flowering_heads=mean(bloom_heads),
             mean_daily_flowers=mean(total_flws_est),
             uw_mean_date= round(mean(yday)),

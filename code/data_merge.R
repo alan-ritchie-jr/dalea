@@ -110,7 +110,7 @@ stig<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))
 # Think about how to model when exposure is so different?
 
 ###seed_sync2 is the updated data
-stig_seed_sync2<-stig%>%left_join(seed_sync2, c("plantID","treatment"))
+stig_seed_sync2<-seed_sync2%>%left_join(stig, c("plantID","treatment"))
 
 
 ## code below was originally how I added visitation-- by joining on a round basis 
@@ -234,55 +234,65 @@ sum(is.na(con_dens_ID$NN_3))/sum(!is.na(con_dens_ID$NN_3))
 # there are points in the data where this truly means no conspecifics are near
 # but there are other points where this means we lack data.
 # we shouldn't lose plants
-
+library(tidyverse)
 ## general treatment level summar
+focal_plt_blooms<-focals%>%select_("plantID","round","yday","bloom_heads")%>%
+  filter(bloom_heads!=0)%>%
+  mutate(round_v=ifelse(yday==192,"1a",ifelse(yday==193,"1b",round)))#created round_v
+
 
 con_dens_summary<-con_dens_ID%>%
-  group_by(treatment)%>%drop_na()%>%
-  summarize(n_plants=n_distinct(plantID),mean_dens_1m=mean(X.dalpur_1m),
-            mean_dens_5m=mean(X.dalpur_5m),
-            mean_1st_NN=mean(NN_1),mean_2nd_NN=mean(NN_2),mean_3rd_NN=mean(NN_3))
-
+  mutate(round_v=ifelse(day==11,"1a",ifelse(day==12,"1b", round)))%>%
+  right_join(focal_plt_blooms, by=c("plantID","round_v"))%>%
+  group_by(treatment)
 
 ### takeaways: mean density, and its patterns overtime look very similar for both treatments
 ### the peak number of flowering conspecific stems observed at 5m is higher in burned unit
 
 
-### Now calculate individual level means
+### Now calculate individual level means; 
+#we want only the density during when a plant was flowering
+
 indi_con_dens<-con_dens_ID%>%
-  group_by(plantID,treatment)%>%
+  mutate(round_v=ifelse(day==11,"1a",ifelse(day==12,"1b", round)))%>%
+  right_join(focal_plt_blooms, by=c("plantID","round_v"))%>%
+  group_by(plantID,treatment)%>%drop_na()%>%
   summarize(n_density_obs=n(),mean_dens_1m=mean(X.dalpur_1m),
             mean_dens_5m=mean(X.dalpur_5m))
 
 
 ### merge indi_con_dens and stig_sync_seed_vis
 
-stig_seed_sync_dens_vis<-indi_con_dens%>%left_join(stig_seed_sync_vis, c("plantID","treatment"))
+stig_seed_sync_dens_vis<-stig_seed_sync_vis%>%left_join(indi_con_dens, c("plantID","treatment"))
 
 # and cobloom data for full dalea df
 
 #### this is the full data frame--a summary of means of the variables of interest for each invidual
-full_dalea_df<-stig_seed_sync_dens_vis%>%left_join(indi_cobloom_dens,c("plantID","treatment"))%>%filter(!is.na(treatment))
-######
+full_dalea_df<-stig_seed_sync_dens_vis%>%left_join(indi_cobloom_dens,c("plantID","treatment"))%>%filter(!is.na(treatment))%>%
+  filter(plantID!="9B")#,plantID!="10B"&plantID!="48B")%>%filter(plantID!="28UB")
+######Note:
+
+### some plants may need to be dropped
+#drop plant 9B  & 42UB (dropped earlier) because we did not collect all of their seed.
+
+# 10B and 48 B were close to tension zone
+#Note that including or excluding 10B or 48B doesn't change results
 
 
-#this is the TOTAL number of observation going into our summaries
-#daily summary sample sizes are in plots_histograms
-sample_sizes<-full_dalea_df%>%
-  group_by(treatment)%>%summarise(n_indi=n_distinct(plantID),density_n=sum(n_density_obs,na.rm=TRUE),
-                                  visit_n=sum(n_visit_obs,na.rm=TRUE),
-                                  stigma_n=sum(n_stig,na.rm=TRUE),
-                                  pheno_n=sum(n_focal_obs,na.rm=TRUE)
-                                  )
+full_dalea_df%>%ggplot(aes(treatment,mean_dens_5m,fill=treatment))+geom_boxplot()
+full_dalea_df2%>%ggplot(aes(treatment,mean_dens_5m,fill=treatment))+geom_boxplot()
 
+full_dalea_df%>%ggplot(aes(mean_date_flw,seed_prop,color=treatment))+geom_point()+geom_smooth(method = "lm")
+full_dalea_df%>%ggplot(aes(total_fruit,seed_prop,color=treatment))+geom_point()+geom_smooth(method="lm")
 
+dens_mod<-lm(seed_prop~treatment,data=full_dalea_df)
 
-full_dalea_df%>%ggplot(aes(mean_date_flw,start,color=treatment))+geom_point()+geom_smooth(method = "lm")
-full_dalea_df%>%ggplot(aes(start,seed_prop,color=treatment))+geom_point()+geom_smooth(method="lm")
+summary(dens_mod)
 
-seed_time_mod<-lm(mean_NN_1~treatment*mean_date_flw,data=full_dalea_df)
-summary(seed_time_mod)
-
-qqPlot(residuals(seed_time_mod))
+seed_fruit_mod<-lm(seed_prop~total_fruit+mean_date_flw*treatment,data=full_dalea_df)
+seed_fruit_mod<-lm(seed_prop~total_fruit+treatment,data=full_dalea_df)
+summary(seed_fruit_mod)
+#so larger plants tended to flower earlier.
+qqPlot(residuals(seed_fruit_mod))
 
      
