@@ -1,6 +1,6 @@
 
 ####RUN CODE IN PHENOLOGY SCRIPT FIRST
-
+# or require(phenology.R)
 
 library(car)
 library(reshape2)
@@ -19,55 +19,36 @@ source("psw.R")
 
 #connect to DB
 
-conn <- dbConnect(RMariaDB::MariaDB(), host = '160.94.186.138',  dbname='cham_poll', user = user, password = psw, port=8889)
+conn <- dbConnect(RMariaDB::MariaDB(), host = '160.94.186.138',  dbname='dalea_2018', user = user, password = psw, port=8889)
 dbListTables(conn)
-### 5 tables--LCCMRsites is the full list of sites and landscape buffer measures from Ian
-### we need cham2017_sites, cham2017_event, cham2017_fruit_seedset,cham2017_plant_treatment
 
-pollination<- dbReadTable(conn, "cham2017_plant_treatment")
-seed<- dbReadTable(conn, "cham2017_fruit_seedset")
-landscape<- dbReadTable(conn, "cham2017_sites")
-event<- dbReadTable(conn, "cham2017_event")
+### 6 tables
+con_dens<- dbReadTable(conn, "dalea_conspecific_density")#conspecific density
+cobloom<- dbReadTable(conn, "dalea_coblooming")# coblooming heterospecific data
+#focal_plt<- dbReadTable(conn, "dalea_focal_floral") # this table has the focal plant data if needed; it is initially pulled in in the phenology script
+poll_stig<- dbReadTable(conn, "dalea_stigma_pollen_counts")#stigma pollen data
+visit<- dbReadTable(conn, "dalea_visitation")#bee and fly visitation data
+seed2<- dbReadTable(conn, "dalea_seed_counts")#seed data
 
 
 dbDisconnect(conn)
 
+#
+#Now we need the focal_pheno table from phenology.R 
 
-#seedchrony
-
-# Need focal_pheno from phenology.R 
-
-#upload focal_pheno
+#upload focal_pheno from local folder
 focal_pheno<-read.csv("data/focal_pheno.csv")
-
-
-#updated seed data
-seed2<-read.csv("data/non_database_csvs/dalea_seed_counts_7May2019.csv")
-
-# cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
-
-#conspecific density and distance to nearest neighbor data
-con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
-#cobloom data
-cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
-#focal plant flowering, pollination, and stigma collection data
-focal_plt<-read.csv("data/non_database_csvs/focal_plant_floral_counts_26March2019.csv")
-
-#stigma pollen counts
-poll_stig<-read.csv("data/non_database_csvs/stigma-pollen-counts_23March2019.csv")
-
-#visit data
-visit<-read.csv("data/non_database_csvs/visitation_30Aug2019.csv")
-
 
 
 ##### first check and summarize seed data!
 
 seed_check2<-seed2%>%anti_join(ID_trt, c("plantID")) # should only be controls
 
+####
 
+# next compare seed in focal versuse controls
 
-###quick check of seed in controls
+###quick summarize for comparison
 seed2$treatment2<-gsub("[[:digit:]]","",seed2$plantID)
 seed_test<-seed2%>%left_join(ID_trt, c("plantID"))%>%filter(plantID!="8UBC")%>%filter(plantID!="42UB")%>%
   replace_na(list(treatment= "Control"))%>%
@@ -76,28 +57,32 @@ seed_test<-seed2%>%left_join(ID_trt, c("plantID"))%>%filter(plantID!="8UBC")%>%f
   group_by(plantID,treatment)%>%
   summarise(n_collection_events=n(),heads=sum(heads),full=sum(full), part=sum(part), empty=sum(empty),
             total_fruit=full+part+empty, filling_frt_prop=(full+part)/total_fruit,
-            seed_prop=full/total_fruit)%>%mutate(cont=ifelse(treatment=="Control", "C","UC")) 
+            seed_prop=full/total_fruit)%>%mutate(cont=ifelse(treatment=="Control", "C","UC"))# this makes a categorical variable "cont"
 
-seed_test$treatment2<-gsub("[[:digit:]]","",seed_test$plantID) #split plant ID letters from numbers
+### now use seed test for t test of seeds in focal vs control plants 
+#control plants were randomly chosen at seed collection from both units
+#compare mean seed set to test if stigma removal potentially impacted seed set.
+
+# if we look at focals vs controls overall:
+t.test(seed_prop~cont,data=seed_test)
+
+#
 #now split by treatment 2 for anova
 
-t.test(seed_prop~cont,data=seed_test)
+seed_test$treatment2<-gsub("[[:digit:]]","",seed_test$plantID) #split plant ID letters from numbers to compare controls and focals within each unit
+#
+
 b_test<-seed_test%>%filter(treatment2=="BC"|treatment2=="B")
 
-eee<-seed_test%>%filter(treatment2=="BC"|treatment2=="UBC")
 ub_test<-seed_test%>%filter(treatment2=="UBC"|treatment2=="UB")
 
-ggplot%>%seed_prop
-t.test(seed_prop~treatment2,data=b_test)
-t.test(seed_prop~treatment2,data=ub_test)
-summary(ub_mod)
-n=
+t.test(seed_prop~treatment2,data=b_test) # burned focals vs controls
+t.test(seed_prop~treatment2,data=ub_test)# unburned focals vs controls
 
-view(seed_test)
-library(car)
-summary(aov(seed_prop~treatment,data=dalea))
-#without
+##########################
 
+### next:
+### summarize seed data for joining with focal_pheno
 
 seed_prop2<-seed2%>%left_join(ID_trt, c("plantID"))%>%filter(plantID!="8UBC")%>%filter(plantID!="42UB")%>%#drope 8ubc because lost seed, drop 42ub because no flowering obs
  filter(treatment2=="B"|treatment2=="UB")%>%#
@@ -117,13 +102,13 @@ seed_sync2<-focal_pheno%>%inner_join(seed_prop2,by="plantID")
 ####
 #### Now add stigma!
 
+#convert pollen counts to numeric; stored as varchar in SQL to retain NA values, which reflect stigma missing tip.
+poll_stig$dpurp_pollen<-as.numeric(poll_stig$dpurp_pollen)
+poll_stig$amocan_pollen<-as.numeric(poll_stig$amocan_pollen)
+poll_stig$aster_pollen<-as.numeric(poll_stig$aster_pollen)
+poll_stig$dcand_pollen<-as.numeric(poll_stig$dcand_pollen)
+poll_stig$unknown_hetero_pollen<-as.numeric(poll_stig$unknown_hetero_pollen)
 
-
-#anti_join to see who has no stigma data
-stig_check<-poll_stig%>%anti_join(ID_trt, c("plantID")) #check this one; likely 5 or 30 B
-#30B was 50B; manually changed in csv because having issues
-# ADD TO OPENREFINE.
-# Also check NAs vs 0s in open refine
 
 ### stig data frame organizes pollen deposition data
 stig<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))%>%
@@ -156,22 +141,18 @@ stig<-poll_stig%>%left_join(ID_trt, c("plantID"))%>%filter(!is.na(dpurp_pollen))
             mean_total_pollen=mean(dpurp_pollen+amocan_pollen+
                                      aster_pollen+
                                      dcand_pollen+
-                                     unknown_hetero_pollen))%>%
-  mutate(hp_cp=ifelse(sum_hetero>sum_dalpur,1,0)) 
-# a dichotomous variable indicating whether the sum of hetero pollen exceeded the sum of conspecific
+                                     unknown_hetero_pollen))
 
+###summary table?
 
 st<-stig%>%group_by(treatment)%>%summarize(mean_n_stig=mean(n_stig),ratio_amo_hetero=(sum(sum_amocan)/sum(sum_hetero)),mean_sum_dalpur=mean(sum_dalpur), 
                                            mean_sum_hetero=mean(sum_hetero),
                                            mean_total_pollen=mean(sum_total_pollen))
 view(st)
 
-
 #so some plants we have few stigma, and others we have more.
-# Think about how to model when exposure is so different?
+#exposure is quite a bit different then. although this likely tracks with size--> bigger plants =more flowers=more pollen
 
-#so some plants we have few stigma, and others we have more.
-# Think about how to model when exposure is so different?
 
 ###seed_sync2 is the updated data
 stig_seed_sync2<-seed_sync2%>%left_join(stig, c("plantID","treatment"))
@@ -182,7 +163,7 @@ stig_seed_sync2<-seed_sync2%>%left_join(stig, c("plantID","treatment"))
 
 ####
 #pollinator visitation
-
+visit<-read.csv("data/non_database_csvs/visitation_30Aug2019.csv")
 ###### maek sure everything is a factor
 levels(as.factor(focals$day))
 levels(as.factor(focals$round))
@@ -209,11 +190,13 @@ focal_flw<-focal_flw%>%
 ### since this doesn't affect the actual results I'm removing them
 
 poll_vis<-left_join(visit,focal_flw, by=c("plantID","round_v"))%>%
-  filter(bloom_heads>0)%>%filter(!is.na(time))# you have this to remove cases where there were 0 heads blooming, but check real quick
-poll_check<-anti_join(visit,focal_flw, by=c("plantID","round_v"))#should be 0
-poll_vis
+  filter(bloom_heads>0)%>%filter(!is.na(time)&time!="NA")%>%
+  mutate(morphoID= fct_recode(morphoID,NULL = "NA"))# you have this to remove cases where there were 0 heads blooming, but check real quick
+
+poll_vis$touches[is.na(poll_vis$morphoID)]<-NA
 # get number of visits per interval, then divide by number of flowers on plant at that round
 visit_summary<-poll_vis%>%group_by(plantID,round_v,treatment,day.y)%>%
+  #create conditional mutate to convert NA values in morphoID
   mutate(bee_fly=ifelse(morphoID%in%"Syrphid","fly",ifelse(is.na(morphoID),"none","bee")))%>%
   summarise(n_visits=sum(!is.na(morphoID)),flw_heads=(sum(bloom_heads))/n(), 
             intervals=n_distinct(time),
@@ -223,9 +206,7 @@ visit_summary<-poll_vis%>%group_by(plantID,round_v,treatment,day.y)%>%
             fly_head_min=(n_fly_visits/flw_heads/intervals),
             visit_head_min=(n_visits/flw_heads)/intervals,
             visit_min=n_visits/intervals)
-sum(visit_summary$intervals)
-846/60
-mean(visit_summary$intervals)
+
 #this is a per round summary
 #indivdual means:
 
@@ -238,20 +219,17 @@ visit_summary_indi<-visit_summary%>%
             mean_visit_head_min=mean(visit_head_min),
             mean_visit_min=mean(visit_min))
 
-mean(visit_summary_indi$sum_intervals)
-visit_summary_indi%>%group_by(treatment)%>%summarize(mean_intervals=mean(sum_intervals),sum_intervals=sum(sum_intervals))
-### so we need to think about how to incorporate display size.
-
 ### now visit summary can be joined with stig_seed_sync2
 stig_seed_sync_vis<-stig_seed_sync2%>%left_join(visit_summary_indi, c("plantID","treatment"))
 
-
+mean(visit_summary_indi$mean_bee_min)
+mean(visit_summary_indi_old$mean_bee_min)
 ### now add conspecific and coblooming!
 
 
 #coblooming floral community data
 
-cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
+#cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
 
 #make a quick summary
 
@@ -292,6 +270,10 @@ con_dens_ID$NN_2<-as.numeric(as.character(con_dens_ID$NN_2))
 con_dens_ID$NN_3<-as.numeric(as.character(con_dens_ID$NN_3))
 
 #some NAs left over from data cleaning- these should be 0
+#first turn into NAs
+con_dens_ID$X.dalpur_1m<-as.numeric(as.character(con_dens_ID$X.dalpur_1m))
+con_dens_ID$X.dalpur_5m<-as.numeric(as.character(con_dens_ID$X.dalpur_5m))
+#now shift to 0
 con_dens_ID$X.dalpur_1m[is.na(con_dens_ID$X.dalpur_1m)]<-0
 con_dens_ID$X.dalpur_5m[is.na(con_dens_ID$X.dalpur_5m)]<-0
 
@@ -302,8 +284,9 @@ sum(is.na(con_dens_ID$NN_3))/sum(!is.na(con_dens_ID$NN_3))
 ### pretty close to half of the data is NA here. 
 # there are points in the data where this truly means no conspecifics are near
 # but there are other points where this means we lack data.
-# we shouldn't lose plants
-library(tidyverse)
+
+
+
 ## general treatment level summar
 focal_plt_blooms<-focals%>%select_("plantID","round","yday","bloom_heads")%>%
   filter(bloom_heads!=0)%>%
@@ -347,12 +330,10 @@ full_dalea_df2<-stig_seed_sync_dens_vis%>%left_join(indi_cobloom_dens,c("plantID
 # 10B and 48 B were close to tension zone
 #Note that including or excluding 10B or 48B doesn't change results
 
-mod<-lm(seed_prop~mean_hetero+mean_dalpur+max_flowering_heads+std_md*treatment,data=dalea)
-summary(mod)
-
 
  full_dalea_df2%>%drop_na()%>%ggplot(aes(treatment,mean_dens_5m,fill=treatment))+geom_boxplot()
-
+ full_dalea_df2%>%drop_na()%>%ggplot(aes(treatment,mean_dens_5m,fill=treatment))+geom_boxplot()
+ 
 full_dalea_df%>%drop_na()%>%ggplot(aes(treatment,full,fill=treatment))+geom_boxplot()
 dalea%>%drop_na()%>%ggplot(aes(treatment,mean_dens_5m,fill=treatment))+geom_boxplot()
 

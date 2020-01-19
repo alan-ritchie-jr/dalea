@@ -17,15 +17,13 @@ source("psw.R")
 
 #connect to DB
 
-conn <- dbConnect(RMariaDB::MariaDB(), host = '160.94.186.138',  dbname='cham_poll', user = user, password = psw, port=8889)
+conn <- dbConnect(RMariaDB::MariaDB(), host = '160.94.186.138',  dbname='Dalea_2018', user = user, password = psw, port=8889)
 dbListTables(conn)
 ### 5 tables--LCCMRsites is the full list of sites and landscape buffer measures from Ian
 ### we need cham2017_sites, cham2017_event, cham2017_fruit_seedset,cham2017_plant_treatment
 
-pollination<- dbReadTable(conn, "cham2017_plant_treatment")
-seed<- dbReadTable(conn, "cham2017_fruit_seedset")
-landscape<- dbReadTable(conn, "cham2017_sites")
-event<- dbReadTable(conn, "cham2017_event")
+focal_plt<- dbReadTable(conn, "dalea2018_focal_floral")
+
 
 
 dbDisconnect(conn)
@@ -36,6 +34,7 @@ library(tidyverse)
 library(mateable)
 library(lubridate)
 
+###for locally stored data
 #coblooming floral community data
 cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
 
@@ -43,7 +42,7 @@ cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.c
 con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
 
 #focal plant flowering, pollination, and stigma data
-focal_plt<-read.csv("data/non_database_csvs/focal_plant_floral_counts_26March2019.csv")
+focal_plt2<-read.csv("data/non_database_csvs/focal_plant_floral_counts_26March2019.csv")
 
 #seed count data
 seed<-read.csv("data/non_database_csvs/seed-counts_26March2019.csv")

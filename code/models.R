@@ -1,13 +1,15 @@
 #this requires fully merged dalea df from stigma_seed_sync_consp
 library(DHARMa)
 library(lme4)
+library(glmmTMB)
 ##models
 #seed vs flower peak
 #try out observation level random effect to deal with overdispersion
 
 
-mod3<-glmer(cbind(full, total_fruit)~scale(mean_date_flw)*treatment+(1|plantID),
-          family=binomial,data=full_dalea_df)
+mod3<-glmer(cbind(full,empty)~scale(std_md)*treatment+max_flowering_heads+mean_amocan+
+                (1|plantID),
+          family=binomial,data=dalea)
 summary(mod3)#same result as lm :)
 
 ##dharma check of overdisp
@@ -92,7 +94,7 @@ testZeroInflation(sim_stig_olre) # fixed overdispersion due to zero inflation
 #parameter estimates change a bit, but overall message of the model doesn't seem to change.
 #adding observation level random effect controls for the zero inflation or overdispersion
 
-seed_mod<-glmmTMB(full~start+heads+mean_amocan+(1|pop),family=nbinom2,
+seed_mod<-glmmTMB(full~start+max_flowering_heads+mean_amocan+(1|pop),family=nbinom2,
                   data=stig_seed_sync2)
 summary(seed_mod)
 ### make separate dataframes for CI for plot

@@ -17,15 +17,13 @@ source("psw.R")
 
 #connect to DB
 
-conn <- dbConnect(RMariaDB::MariaDB(), host = '160.94.186.138',  dbname='cham_poll', user = user, password = psw, port=8889)
+conn <- dbConnect(RMariaDB::MariaDB(), host = '160.94.186.138',  dbname='Dalea_2018', user = user, password = psw, port=8889)
 dbListTables(conn)
 ### 5 tables--LCCMRsites is the full list of sites and landscape buffer measures from Ian
 ### we need cham2017_sites, cham2017_event, cham2017_fruit_seedset,cham2017_plant_treatment
 
-pollination<- dbReadTable(conn, "cham2017_plant_treatment")
-seed<- dbReadTable(conn, "cham2017_fruit_seedset")
-landscape<- dbReadTable(conn, "cham2017_sites")
-event<- dbReadTable(conn, "cham2017_event")
+focal_plt<- dbReadTable(conn, "dalea2018_focal_floral")
+
 
 
 dbDisconnect(conn)
@@ -36,23 +34,7 @@ library(tidyverse)
 library(mateable)
 library(lubridate)
 
-#coblooming floral community data
-cobloom<-read.csv("data/non_database_csvs/dalea-coblooming-density_25march2019.csv")
-
-#conspecific density and distance to nearest neighbor data
-con_dens<-read.csv("data/non_database_csvs/dalea-conspecific-density_23March2019.csv")
-
-#focal plant flowering, pollination, and stigma data
-focal_plt<-read.csv("data/non_database_csvs/focal_plant_floral_counts_26March2019.csv")
-
-#seed count data
-seed<-read.csv("data/non_database_csvs/seed-counts_26March2019.csv")
-
-#updated seed count data with all seed counts
-
-seed2<-read.csv("data/non_database_csvs/dalea_seed_counts_7May2019.csv")
-
-### this will create synchrony measures 
+### this script will create synchrony measures 
 ### and walk through the data and summaries created by mateable
 ### note this just uses the focal plant floral data
 ### seed_syncrhony, and stigma_seed_synchrony will merge the synchrony data to the other dataframes
@@ -478,59 +460,7 @@ drop<-c("31UB","32UB","33UB","34UB","35UB", "36UB","37UB","38UB","39UB","40UB",
 focal_pheno<-focal_pheno%>%mutate(added=ifelse(plantID%in%drop,"added","original"))
 
 
-
-
-
 write.csv(focal_pheno,"data/focal_pheno.csv",row.names=FALSE)
 ### If you'd like to continue go to the seed_phenology_merge script next
 
 #if you'd like to look at some of the relationships in the data some plotting code is included below!
-
-#### 
-# let's get some plots going of b/ub and averages 
-## bunches of plots
-
-focal_pheno%>%ggplot(aes(treatment, dist_peak,fill=treatment))+geom_boxplot()
-
-#duration with subpops split out
-
-focal_pheno%>%ggplot(aes(treatment, syn_aug_sp,fill=treatment))+geom_boxplot()
-
-focal_pheno%>%ggplot(aes(treatment, start,fill=treatment))+geom_boxplot()
-
-focal_pheno%>%ggplot(aes(pop,peak_flw_est,fill=treatment))+geom_boxplot()
-
-focal_pheno%>%ggplot(aes(treatment,mean_date_flw,fill=treatment))+geom_boxplot()
-
-focal_pheno_drop%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
-
-focal_summary%>%ggplot(aes(peak_flw_head,peak_flw_est,color=treatment))+geom_jitter()+
-  geom_smooth(method="lm")### peak_flw_est and peak_flw_head are pretty strongly positvely correlated
-
-
-focal_pheno%>%ggplot(aes(treatment, syn_aug_sp,fill=treatment))+geom_boxplot()
-
-focal_pheno%>%ggplot(aes(treatment, mean_flowering_heads,fill=treatment))+geom_boxplot()
-
-focal_pheno%>%ggplot(aes(pop, syn_aug_sp,fill=treatment))+geom_boxplot()
-
-focal_pheno%>%ggplot(aes(treatment, est_mean_daily_flw_presentation,fill=treatment))+geom_boxplot()
-
-focal_pheno_drop<-focal_pheno%>%filter(plantID%in%drop)
-
-focal_pheno%>%ggplot(aes(treatment, duration,fill=treatment))+geom_boxplot()
-focal_pheno_drop%>%ggplot(aes(treatment,syn_aug_sp,fill=treatment))+geom_boxplot()
-focal_pheno_dropped%>%ggplot(aes(treatment,duration,fill=treatment))+geom_boxplot()
-
-####all plants
-focal_summary2%>%ggplot(aes(treatment,peak_flw_est,fill=treatment))+geom_boxplot()
-
-
-summary(lm(peak_flw_est~treatment,data=focal_summary2))
-
-summary(lm(mean_date_flw~treatment,data=focal_pheno))
-
-qqPlot(lm(mean_date_flw~treatment,data=focal_pheno))
-
-qqPlot(lm(peak_flw_est~treatment,data=focal_summary2))
-###

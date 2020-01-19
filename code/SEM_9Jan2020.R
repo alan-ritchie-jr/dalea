@@ -31,12 +31,14 @@ view(full_dalea_df)
 # Thefull_dalea_df dataframe, for whatever reason, had NOT incorporated 
 # a change to mean density where we only counted days where focal plants were blooming.
 # it seems to have 
-dalea<-na.omit(full_dalea_df2)# change this to full_dalea_df to add in overall density
+dalea_test<-na.omit(full_dalea_df2)# change this to full_dalea_df to add in overall density
 dalea$trmnt<-as.numeric(dalea$treatment=="B")
 dalea$fire<-as.numeric(dalea$treatment=="B")
 dalea$trmnt
 dalea$treatment
 
+mean(dalea$max_flowering_heads)
+mean(dalea_test$max_flowering_heads)
 #center variables
 dalea$c_pheno<-scale(dalea$mean_date_flw,scale=F)
 dalea$c_dens<-scale(dalea$mean_dens_5m,scale=F)
